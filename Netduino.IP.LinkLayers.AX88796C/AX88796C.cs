@@ -77,10 +77,10 @@ namespace Netduino.IP.LinkLayers
         // AX88796C opcodes
         enum AX88796COpcode : byte
         {
-            ReadGlobalRegister = 0x03,
+            ReadGlobalRegister  = 0x03,
             WriteGlobalRegister = 0xD8,
-            ReadRxq = 0x0B,
-            WriteTxq = 0x02,
+            ReadRxq             = 0x0B,
+            WriteTxq            = 0x02,
             //ReadStatus          = 0x05,
             //EnableQcsMode       = 0x38,
             //ExitPowerDown       = 0xAB,
@@ -91,24 +91,24 @@ namespace Netduino.IP.LinkLayers
         // AX88796CRegister registers
         enum AX88796CRegister : byte
         {
-            PSR = 0x00, // PSR (Page Select Register)
+            PSR     = 0x00, // PSR (Page Select Register)
             //BOR     = 0x02,
-            FER = 0x04, // FER (Function Enable Register)
-            ISR = 0x06, // ISR (Interrupt Status Register)
-            IMR = 0x08, // IMR (Interrupt Mask Register)
-            WFCR = 0x0A, // WFCR (Wakeup Frame Configuration Register)
-            PSCR = 0x0C, // PSCR (Power Saving Configuration Register)
+            FER     = 0x04, // FER (Function Enable Register)
+            ISR     = 0x06, // ISR (Interrupt Status Register)
+            IMR     = 0x08, // IMR (Interrupt Mask Register)
+            WFCR    = 0x0A, // WFCR (Wakeup Frame Configuration Register)
+            PSCR    = 0x0C, // PSCR (Power Saving Configuration Register)
             //MACCR   = 0x0E,
-            TFBFCR = 0x10, // TFBFCR (TX Free Buffer Count Register)
-            TSNR = 0x12, // TSNR (TX Sequence Number Register)
+            TFBFCR  = 0x10, // TFBFCR (TX Free Buffer Count Register)
+            TSNR    = 0x12, // TSNR (TX Sequence Number Register)
             //RTDPR   = 0x14,
-            RXBCR1 = 0x16, // RXBCR1 (RX Bridge Control Register 1)
-            RXBCR2 = 0x18, // RXBCR2 (RX Bridge Control Register 2)
-            RTWCR = 0x1A, // RTWCR (RX Total Word Count Register)
-            RCPHR = 0x1C, // RCPHR (RX Current Packet Header Register)
+            RXBCR1  = 0x16, // RXBCR1 (RX Bridge Control Register 1)
+            RXBCR2  = 0x18, // RXBCR2 (RX Bridge Control Register 2)
+            RTWCR   = 0x1A, // RTWCR (RX Total Word Count Register)
+            RCPHR   = 0x1C, // RCPHR (RX Current Packet Header Register)
             //RWR     = 0x1E,
             //// 0x20
-            RPPER = 0x22, // RPPER (RX Packet Process Enable Register)
+            RPPER   = 0x22, // RPPER (RX Packet Process Enable Register)
             //// 0x24
             //// 0x26
             //MRCR    = 0x28,
@@ -125,16 +125,16 @@ namespace Netduino.IP.LinkLayers
             //// 0x3E
             //// 0x40
             //ICR     = 0x42,
-            PCR = 0x44, // PCR (PHY Control Register)
+            PCR     = 0x44, // PCR (PHY Control Register)
             //PHYSR   = 0x46,
-            MDIODR = 0x48, // MDIODR (MDIO Read/Write Data Register)
-            MDIOCR = 0x4A, // MDIOCR (MDIO Read/Write Control Register)
-            LCR0 = 0x4C, // LCR0 (LED Control Register 0)
-            LCR1 = 0x4E, // LCR1 (LED Control Register 1)
+            MDIODR  = 0x48, // MDIODR (MDIO Read/Write Data Register)
+            MDIOCR  = 0x4A, // MDIOCR (MDIO Read/Write Control Register)
+            LCR0    = 0x4C, // LCR0 (LED Control Register 0)
+            LCR1    = 0x4E, // LCR1 (LED Control Register 1)
             //IPGCR   = 0x50,
             //CRIR    = 0x52,
             //FLHWCR  = 0x54,
-            RXCR = 0x56, // RXCR (RX Control Register)
+            RXCR    = 0x56, // RXCR (RX Control Register)
             //JLCR    = 0x58,
             //// 0x5A
             //MPLR    = 0x5C,
@@ -798,7 +798,7 @@ namespace Netduino.IP.LinkLayers
                 // wait for free pages to become available (but do not wait longer than our expiration)
                 Int32 millisecondsUntilTimeout = (Int32)((timeoutInMachineTicks != Int64.MaxValue) ? (timeoutInMachineTicks - Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks) / System.TimeSpan.TicksPerMillisecond : Int32.MaxValue);
                 if (millisecondsUntilTimeout < 0) millisecondsUntilTimeout = 0;
-                _sendPacketTxPagesFreeEvent.WaitOne(millisecondsUntilTimeout, false);
+                if (!_sendPacketTxPagesFreeEvent.WaitOne(millisecondsUntilTimeout, false)) return; /* if we timeout, drop the frame */
             }
 
             UInt16 tsnr = 0;

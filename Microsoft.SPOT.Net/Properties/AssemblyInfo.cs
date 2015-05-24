@@ -5,13 +5,13 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("Netduino.IP")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("Microsoft.SPOT.Net")]
+[assembly: AssemblyDescription("Microsoft.SPOT.Net")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("Netduino.IP")]
-[assembly: AssemblyCopyright("Copyright © 2015 Secret Labs LLC. All rights reserved.")]
-[assembly: AssemblyTrademark("")]
+[assembly: AssemblyCompany("Microsoft Corporation")]
+[assembly: AssemblyProduct("Microsoft.SPOT.Net")]
+[assembly: AssemblyCopyright("Copyright (C) Microsoft Corporation.  All rights reserved.")]
+[assembly: AssemblyTrademark(".NET is a trademark of Microsoft Corporation.")]
 [assembly: AssemblyCulture("")]
 
 // Version information for an assembly consists of the following four values:
@@ -21,5 +21,5 @@ using System.Runtime.InteropServices;
 //      Build Number
 //      Revision
 //
-[assembly: AssemblyVersion("1.0.1.1")]
-[assembly: AssemblyFileVersion("1.0.1.1")]
+[assembly: AssemblyVersion("4.3.1.0")]
+[assembly: AssemblyFileVersion("4.3.1.0")]

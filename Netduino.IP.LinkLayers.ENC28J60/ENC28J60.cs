@@ -640,7 +640,7 @@ namespace Netduino.IP.LinkLayers
             }
         }
 
-        // ReadControlRegister sets the value of one of our network chip's internal registers
+        // ReadControlRegister retrieves the value of one of our network chip's internal registers
         UInt16 ReadControlRegister(ENC28J60Register registerAddressLow, ENC28J60Register registerAddressHigh, bool isMacOrMiiRegister = false)
         {
             /* NOTE: this overload of ReadControlRegister reads a set of LOW/HIGH registers */
@@ -914,7 +914,7 @@ namespace Netduino.IP.LinkLayers
             // if another packet is currently being transmitted, wait here (but do not wait longer than our expiration).
             Int32 millisecondsUntilTimeout = (Int32)((timeoutInMachineTicks != Int64.MaxValue) ? (timeoutInMachineTicks - Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks) / System.TimeSpan.TicksPerMillisecond : Int32.MaxValue);
             if (millisecondsUntilTimeout < 0) millisecondsUntilTimeout = 0;
-            _sendPacketTxBufferFreeEvent.WaitOne(millisecondsUntilTimeout, false);
+            if (!_sendPacketTxBufferFreeEvent.WaitOne(millisecondsUntilTimeout, false)) return; /* if we timeout, drop the frame */
 
             int totalBufferLength = 0;
             for (int i = 0; i < numBuffers; i++)
