@@ -44,6 +44,8 @@ namespace Netduino.IP.LinkLayers
         const int MAX_TX_FRAME_LENGTH = 1526; /* 1518 bytes + 1 control byte + 7 bytes for status vector */
         const int MAX_RX_FRAME_LENGTH = 1526; /* 1518 bytes + 4 byte CRC + 4 bytes for status vector */
 
+        const int ETHERNET_FCS_LENGTH = 4;
+
         bool _isInitialized = false;
 
         event PacketReceivedEventHandler OnPacketReceived;
@@ -354,7 +356,7 @@ namespace Netduino.IP.LinkLayers
                     if (count > 0)
                     {
                         if (OnPacketReceived != null)
-                            OnPacketReceived(this, buffer, index, count);
+                            OnPacketReceived(this, buffer, index, count - ETHERNET_FCS_LENGTH);
                     }
                     else
                     {

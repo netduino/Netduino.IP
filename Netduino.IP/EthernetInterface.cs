@@ -69,10 +69,10 @@ namespace Netduino.IP
         {
             if (_isDisposed) throw new ObjectDisposedException();
 
-            /* NOTE: the FCS must be verified by the ILinkLayer implementer (or hardware link layer) before passing us the frame */
+            /* NOTE: the FCS must be verified by the ILinkLayer implementer (or hardware link layer) before passing us the frame; the FCS should not be omitted from the buffer */
 
-            // ignore frames smaller than the standard Ethernet header size (plus the FCS length).
-            if (count < ETHERNET_HEADER_LENGTH + ETHERNET_FCS_LENGTH) return;
+            // ignore frames smaller than the standard Ethernet header size
+            if (count < ETHERNET_HEADER_LENGTH) return;
 
             // make sure that this packet is addressed to our NIC
             bool unicastMacAddressMatches = true;
@@ -95,14 +95,12 @@ namespace Netduino.IP
                     {
                         if (IPv4PacketReceived != null)
                             IPv4PacketReceived(this, buffer, index + ETHERNET_HEADER_LENGTH, count - ETHERNET_HEADER_LENGTH);
-                            //IPv4PacketReceived(this, buffer, index + ETHERNET_HEADER_LENGTH, count - ETHERNET_HEADER_LENGTH - ETHERNET_FCS_LENGTH);
                     }
                     break;
                 case 0x0806: /* ARP */
                     {
                         if (ARPFrameReceived != null)
                             ARPFrameReceived(this, buffer, index + ETHERNET_HEADER_LENGTH, count - ETHERNET_HEADER_LENGTH);
-                            //ARPFrameReceived(this, buffer, index + ETHERNET_HEADER_LENGTH, count - ETHERNET_HEADER_LENGTH - ETHERNET_FCS_LENGTH);
                     }
                     break;
                 default: /* unsupported data type: drop the frame */
