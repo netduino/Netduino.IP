@@ -40,7 +40,7 @@ namespace Netduino.IP
 
         ArpResolver _arpResolver;
 
-        const byte MAX_SIMULTANEOUS_SOCKETS = 8; /* must be between 2 and 64; one socket is reserved for background UDP operations such as the DHCP and DNS clients */
+        internal const byte MAX_SIMULTANEOUS_SOCKETS = 8; /* must be between 2 and 64; one socket is reserved for background UDP operations such as the DHCP and DNS clients */
         static Netduino.IP.Socket[] _sockets = new Netduino.IP.Socket[MAX_SIMULTANEOUS_SOCKETS];
         UInt64 _handlesInUseBitmask = 0;
         object _handlesInUseBitmaskLockObject = new object();
@@ -71,6 +71,30 @@ namespace Netduino.IP
         object _loopbackBufferLockObject = new object();
         System.Threading.Thread _loopbackThread;
         AutoResetEvent _loopbackBufferFilledEvent = new AutoResetEvent(false);
+
+        internal struct ReceivedPacketBufferHoles
+        {
+            public Int32 FirstIndex;
+            public Int32 LastIndex; /* set to Int32.MaxValue to indicate an unknown end of missing fragmetn */
+        }
+
+        const int REASSEMBLY_TIMEOUT_IN_SECONDS = 30;
+        const int DEFAULT_NUM_BUFFER_HOLES_ENTRIES_PER_BUFFER = 4;
+        internal class ReceivedPacketBuffer
+        {
+            public UInt32 SourceIPAddress;
+            public UInt32 DestinationIPAddress;
+            public UInt16 Identification;
+            public byte[] Buffer;
+            public Int32 ActualBufferLength;
+            public ReceivedPacketBufferHoles[] Holes;
+            public Int64 TimeoutInMachineTicks;
+            public bool IsEmpty;
+            public object LockObject;
+        }
+        const int DEFAULT_NUM_RECEIVED_PACKET_BUFFERS = 1;
+        /* create our default # of received packet buffers; when we create new sockets we should dynamically create one or more buffers per socket (and then destroy those buffers the same way) */
+        ReceivedPacketBuffer[] _receivedPacketBuffers = new ReceivedPacketBuffer[DEFAULT_NUM_RECEIVED_PACKET_BUFFERS];
 
         //// fixed buffer for IPv4 header
         const int IPV4_HEADER_MIN_LENGTH = 20;
@@ -129,6 +153,12 @@ namespace Netduino.IP
                 _arpResolver.SetIpv4Address(_ipv4configIPAddress);
             }
 
+            // initialize our buffers
+            for (int i = 0; i < _receivedPacketBuffers.Length; i++ )
+            {
+                InitializeReceivedPacketBuffer(_receivedPacketBuffers[i]);
+            }
+
             // wire up our IPv4PacketReceived handler
             _ethernetInterface.IPv4PacketReceived += _ethernetInterface_IPv4PacketReceived;
             // wire up our LinkStateChanged event handler
@@ -172,9 +202,11 @@ namespace Netduino.IP
             /* NOTE: we will have to cache partial frames in this class until all fragments are received (or timeout occurs) since we may not receive the fragment which indicates which socketHandle is the target until the 2nd or later fragment */
             /* NOTE: we will enable a 30 second timeout PER INCOMING DATAGRAM; if all fragments have not been received before the timeout then we will discard the datagram from our buffers and send an ICMPv4 Time Exceeded (code 1) message;
              *       we do not restart the timeout after every fragment...it is a maximum timeout for the entire datagram.  also note that we can only send the ICMP timeout if we have received frame 0 (with the source port information) */
-            //UInt16 identification = (UInt16)((buffer[index + 4] << 8) + buffer[index + 5]);
-            //byte flags = (byte)(buffer[index + 6] >> 5);
-            //UInt16 fragmentOffset = (UInt16)(((buffer[index + 6] & 0x1F) << 8) + buffer[index + 7]);
+            UInt16 identification = (UInt16)((buffer[index + 4] << 8) + buffer[index + 5]);
+            byte flags = (byte)(buffer[index + 6] >> 5);
+            bool moreFragments = ((flags & 0x1) == 0x1);
+
+            UInt16 fragmentOffset = (UInt16)((((((UInt16)buffer[index + 6]) & 0x1F) << 8) + buffer[index + 7]) << 3);
 
             ProtocolType protocol = (ProtocolType)buffer[index + 9];
 
@@ -182,26 +214,129 @@ namespace Netduino.IP
             UInt32 sourceIPAddress = (UInt32)((buffer[index + 12] << 24) + (buffer[index + 13] << 24) + (buffer[index + 14] << 24) + buffer[index + 15]);
             UInt32 destinationIPAddress = (UInt32)((buffer[index + 16] << 24) + (buffer[index + 17] << 24) + (buffer[index + 18] << 24) + buffer[index + 19]);
 
-            CallSocketPacketReceivedHandler(sourceIPAddress, destinationIPAddress, protocol, buffer, index + headerLength, count - headerLength);
+            /* save this datagram in an incoming frame buffer; discard it if we do not have enough incoming frame buffers */
+            ReceivedPacketBuffer receivedPacketBuffer = GetReceivedPacketBuffer(sourceIPAddress, destinationIPAddress, identification);
+            if (receivedPacketBuffer == null) /* if we cannot retrieve or allocate a buffer, drop the packet */
+                return;
+            bool fragmentsMissing = false;
+            Int32 actualFragmentLength = System.Math.Max(System.Math.Min(totalLength, count) - headerLength, 0);
+            lock (receivedPacketBuffer.LockObject)
+            {
+                // copy the fragment into our packet buffer
+                Array.Copy(buffer, index + headerLength, receivedPacketBuffer.Buffer, fragmentOffset, actualFragmentLength);
+                // now recalculate the "holes" in our fragment
+                for (int i = 0; i < receivedPacketBuffer.Holes.Length; i++)
+                {
+                    // if this fragment does not fill this hole, proceed to the next hole
+                    if (fragmentOffset > receivedPacketBuffer.Holes[i].LastIndex)
+                        continue;
+                    if (fragmentOffset < receivedPacketBuffer.Holes[i].FirstIndex)
+                        continue;
+
+                    // this fragment fills part/all of the hole at the current index; clear the current index so we can populate new hole entr(ies)
+                    Int32 holeFirstIndex = receivedPacketBuffer.Holes[i].FirstIndex;
+                    Int32 holeLastIndex = receivedPacketBuffer.Holes[i].LastIndex;
+                    receivedPacketBuffer.Holes[i].FirstIndex = -1;
+                    receivedPacketBuffer.Holes[i].LastIndex = -1;
+
+                    if (fragmentOffset > holeFirstIndex)
+                    {
+                        // our fragment does not fill the entire hole; create a hole entry to indicate that the first part of the hole is still not filled.
+                        AddReceivedPacketBufferHoleEntry(receivedPacketBuffer, holeFirstIndex, fragmentOffset - 1);
+                    }
+
+                    if ((fragmentOffset + actualFragmentLength - 1 < holeLastIndex) && moreFragments)
+                    {
+                        // our fragment does not fill the entire hole; create a hole entry to indicate that the last part of the hole is still not filled.
+                        AddReceivedPacketBufferHoleEntry(receivedPacketBuffer, fragmentOffset + actualFragmentLength - 1, holeLastIndex);
+                    }
+                }
+                // now determine if there are any missing fragments
+                for (int i = 0; i < receivedPacketBuffer.Holes.Length; i++)
+                {
+                    // if this fragment is the final fragment (which lets us know the total size of our buffer), eliminate the "infinite-reaching" hole
+                    if (moreFragments == false)
+                    {
+                        receivedPacketBuffer.ActualBufferLength = fragmentOffset + actualFragmentLength - 1;
+                        if (receivedPacketBuffer.Holes[i].LastIndex == Int32.MaxValue)
+                        {
+                            if (receivedPacketBuffer.Holes[i].FirstIndex == fragmentOffset + actualFragmentLength)
+                            {
+                                // this is now just dummy area beyond the datagram; remove it.
+                                receivedPacketBuffer.Holes[i].FirstIndex = -1;
+                                receivedPacketBuffer.Holes[i].LastIndex = -1;
+                            }
+                            else
+                            {
+                                // modify this hole to end at the proper LastIndex (since we now know the length of our reassembled datagram
+                                receivedPacketBuffer.Holes[i].LastIndex = fragmentOffset + actualFragmentLength - 1;
+                            }
+                        }
+                    }
+
+                    if (receivedPacketBuffer.Holes[i].FirstIndex != -1 || receivedPacketBuffer.Holes[i].LastIndex != -1)
+                        fragmentsMissing = true;
+                }
+            }
+
+            if (!fragmentsMissing)
+            {
+                CallSocketPacketReceivedHandler(sourceIPAddress, destinationIPAddress, protocol, receivedPacketBuffer.Buffer, 0, receivedPacketBuffer.ActualBufferLength);
+                // since we are caching the buffer locally in the socket class, free the packet buffer.
+                InitializeReceivedPacketBuffer(receivedPacketBuffer);
+            }
+        }
+
+        void AddReceivedPacketBufferHoleEntry(ReceivedPacketBuffer receivedPacketBuffer, Int32 firstIndex, Int32 lastIndex)
+        {
+            Int32 availableIndex = -1;
+            for (Int32 i = 0; i < receivedPacketBuffer.Holes.Length; i++)
+            {
+                if (receivedPacketBuffer.Holes[i].FirstIndex != -1 && receivedPacketBuffer.Holes[i].LastIndex != -1)
+                {
+                    availableIndex = i;
+                    break;
+                }
+            }
+
+            // if we could not find an empty entry, enlarge the array.
+            if (availableIndex == -1)
+            {
+                ReceivedPacketBufferHoles[] newHoles = new ReceivedPacketBufferHoles[receivedPacketBuffer.Holes.Length + 1];
+                Array.Copy(receivedPacketBuffer.Holes, newHoles, receivedPacketBuffer.Holes.Length);
+                receivedPacketBuffer.Holes = newHoles;
+                availableIndex = receivedPacketBuffer.Holes.Length - 1;
+            }
+
+            receivedPacketBuffer.Holes[availableIndex].FirstIndex = firstIndex;
+            receivedPacketBuffer.Holes[availableIndex].LastIndex = lastIndex;
         }
 
         void CallSocketPacketReceivedHandler(UInt32 sourceIPAddress, UInt32 destinationIPAddress, ProtocolType protocol, byte[] buffer, Int32 index, Int32 count)
         {
-            /* TODO: find the port # for our packet (looking into the UDP or TCP packet) */
-            //UInt16 sourceIPPort = 0;
-            UInt16 destinationIPPort = 0;
-
-            /* TODO: replace this socketHandle with the _actual_ socketHandle */
-            UInt32 socketHandle = 1;
+            Int32 socketHandle = -1;
 
             switch (protocol)
             {
                 case ProtocolType.Udp: /* UDP */
                     {
-                        /* TODO: we maybe should manage a pool of "rx buffers" here and allocating them to incoming data on the fly.  we'd also reassemble fragmented packets.  
-                         *       the reality is that, optimally, we'd just pass our original buffer all the way to the user...but NETMF's model uses buffers so that the data can be polled for
-                         *       and read at leisure. in any case, we must free up (and possibly dereference) the rx buffer when the data has been read by the application */
-                        //                        _sockets[socketHandle].OnPacketReceived(buffer, index + headerLength, count - headerLength);
+                        // find the port # for our packet (looking into the packet) 
+                        UInt16 destinationIPPort = (UInt16)((((UInt16)buffer[index + 2]) << 8) + buffer[index + 3]);
+
+                        for (int i = 0; i < MAX_SIMULTANEOUS_SOCKETS; i++)
+                        {
+                            if ((_sockets[i] != null) &&
+                                (_sockets[i].ProtocolType == ProtocolType.Udp) &&
+                                (_sockets[i].DestinationIPPort == destinationIPPort))
+                            {
+                                socketHandle = i;
+                            }
+                        }
+
+                        if (socketHandle != -1)
+                        {
+                            _sockets[socketHandle].OnPacketReceived(sourceIPAddress, destinationIPAddress, buffer, index, count);
+                        }
                     }
                     break;
                 //case ProtocolType.Tcp:
@@ -210,6 +345,66 @@ namespace Netduino.IP
                 default:   /* unsupported protocol; drop packet */
                     return;
             }
+        }
+
+        internal void InitializeReceivedPacketBuffer(ReceivedPacketBuffer buffer)
+        {
+            buffer.SourceIPAddress = 0;
+            buffer.DestinationIPAddress = 0;
+            buffer.Identification = 0;
+
+            if (buffer.Buffer == null)
+                buffer.Buffer = new byte[1500]; /* TODO: determine correct maximum size and make this a const */
+            if ((buffer.Holes == null) || (buffer.Holes.Length != DEFAULT_NUM_BUFFER_HOLES_ENTRIES_PER_BUFFER))
+                buffer.Holes = new ReceivedPacketBufferHoles[DEFAULT_NUM_BUFFER_HOLES_ENTRIES_PER_BUFFER];
+            buffer.Holes[0].FirstIndex = 0;
+            buffer.Holes[0].LastIndex = Int32.MaxValue;
+            for (int i = 1; i < buffer.Holes.Length; i++)
+            {
+                buffer.Holes[i].FirstIndex = -1;
+                buffer.Holes[i].LastIndex = -1;
+            }
+            buffer.ActualBufferLength = 0;
+
+            buffer.TimeoutInMachineTicks = Int64.MaxValue;
+            buffer.IsEmpty = true;
+            if (buffer.LockObject == null)
+                buffer.LockObject = new object();
+        }
+
+        internal ReceivedPacketBuffer GetReceivedPacketBuffer(UInt32 sourceIPAddress, UInt32 destinationIPAddress, UInt16 identification)
+        {
+            // first, look for an existing packet buffer
+            for (int i = 0; i < _receivedPacketBuffers.Length; i++)
+            {
+                if ((_receivedPacketBuffers[i].IsEmpty == false) &&
+                    (_receivedPacketBuffers[i].Identification == identification) &&
+                    (_receivedPacketBuffers[i].SourceIPAddress == sourceIPAddress) &&
+                    (_receivedPacketBuffers[i].DestinationIPAddress == destinationIPAddress))
+                {
+                    return _receivedPacketBuffers[i];
+                }
+            }
+
+            // if no packet buffer exists for this packet, allocate one.
+            for (int i = 0; i < _receivedPacketBuffers.Length; i++)
+            {
+                lock (_receivedPacketBuffers[i].LockObject)
+                {
+                    if (_receivedPacketBuffers[i].IsEmpty == false)
+                        continue;
+
+                    _receivedPacketBuffers[i].IsEmpty = false;
+                    _receivedPacketBuffers[i].Identification = identification;
+                    _receivedPacketBuffers[i].SourceIPAddress = sourceIPAddress;
+                    _receivedPacketBuffers[i].DestinationIPAddress = destinationIPAddress;
+                    _receivedPacketBuffers[i].TimeoutInMachineTicks = Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (TimeSpan.TicksPerMillisecond * REASSEMBLY_TIMEOUT_IN_SECONDS * 1000);
+                    return _receivedPacketBuffers[i];
+                }
+            }
+
+            // if we could not obtain or allocate a packet buffer, return null.
+            return null;
         }
 
         /* this function returns a new socket...or null if no socket could be allocated */

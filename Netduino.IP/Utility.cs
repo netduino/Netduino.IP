@@ -13,11 +13,16 @@ namespace Netduino.IP
             _singleBuffer[0] = buffer;
             _singleOffset[0] = offset;
             _singleCount[0] = count;
-            return CalculateInternetChecksum(_singleBuffer, _singleOffset, _singleCount);
+            return CalculateInternetChecksum(_singleBuffer, _singleOffset, _singleCount, _singleBuffer.Length);
+        }
+
+        public static UInt16 CalculateInternetChecksum(byte[][] buffer, int[] offset, int[] count)
+        {
+            return CalculateInternetChecksum(buffer, offset, count, buffer.Length);
         }
 
         /* NOTE: all buffers except for the last one must have an even number of characters */
-        public static UInt16 CalculateInternetChecksum(byte[][] buffer, int[] offset, int[] count)
+        public static UInt16 CalculateInternetChecksum(byte[][] buffer, int[] offset, int[] count, int numBuffers)
         {
             int totalLength = 0;
             for (int iBuffer = 0; iBuffer < buffer.Length; iBuffer++)
