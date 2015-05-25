@@ -88,9 +88,6 @@ namespace Microsoft.SPOT.Net.NetworkInformation
 
         private static uint IPAddressFromString(string ipAddress)
         {
-            throw new NotImplementedException();
-			/* TODO: the below code should work...but we need to fix the reference to CC3100 */
-
             /* NOTE: this code is copy-and-pasted from System.Net.IPAddress.Parse */
             if (ipAddress == null)
                 throw new ArgumentNullException();
@@ -115,8 +112,8 @@ namespace Microsoft.SPOT.Net.NetworkInformation
                     else
                     {
                         i = i == length - 1 ? ++i : i;
-                        // Int32 stoi32 = Netduino.IP.LinkLayers.CC3100.ConvertStringToInt32(ipAddress.Substring(lastIndex, i - lastIndex)
-                        Int32 stoi32 = (Int32)(Type.GetType("Netduino.IP.LinkLayers.CC3100, Netduino.IP.LinkLayers.CC3100").GetMethod("ConvertStringToInt32", BindingFlags.Static).Invoke(null, new object[] { lastIndex, i - lastIndex }));
+                        // Int32 stoi32 = Netduino.IP.IPv4Layer.ConvertStringToInt32(ipAddress.Substring(lastIndex, i - lastIndex)
+                        Int32 stoi32 = (Int32)(Type.GetType("Netduino.IP.IPv4Layer, Netduino.IP").GetMethod("ConvertStringToInt32", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new object[] { lastIndex, i - lastIndex }));
                         octet = (ulong)(stoi32 & 0x00000000000000FF);
                         ipAddressValue = ipAddressValue + (ulong)((octet << shiftIndex) & mask);
                         lastIndex = i + 1;
@@ -248,8 +245,8 @@ namespace Microsoft.SPOT.Net.NetworkInformation
         {
             get 
             { 
-			    /* NOTE: see CC3100 driver for details */
-                throw new NotImplementedException();
+			    /* TODO: add support for DHCP-allocated IP addresses */
+                if (IsDhcpEnabled) throw new NotImplementedException();
 
                 return IPAddressToString(_ipAddress); 
             }
@@ -258,9 +255,9 @@ namespace Microsoft.SPOT.Net.NetworkInformation
         public string GatewayAddress
         {
             get 
-            { 
-			    /* NOTE: see CC3100 driver for details */
-                throw new NotImplementedException();
+            {
+                /* TODO: add support for DHCP-allocated IP addresses */
+                if (IsDhcpEnabled) throw new NotImplementedException();
 
                 return IPAddressToString(_gatewayAddress); 
             }
@@ -270,8 +267,8 @@ namespace Microsoft.SPOT.Net.NetworkInformation
         {
             get 
             {
-                /* NOTE: see CC3100 driver for details */
-                throw new NotImplementedException();
+                /* TODO: add support for DHCP-allocated IP addresses */
+                if (IsDhcpEnabled) throw new NotImplementedException();
 
                 return IPAddressToString(_subnetMask); 
             }
@@ -296,8 +293,9 @@ namespace Microsoft.SPOT.Net.NetworkInformation
             {
                 ArrayList list = new ArrayList();
 
-				/* NOTE: see CC3100 driver for details */
-	            throw new NotImplementedException();
+                /* TODO: add support for DHCP-allocated DNS addresses */
+                if (IsDynamicDnsEnabled) throw new NotImplementedException();
+
                 if (_dnsAddress1 != 0)
                 {
                     list.Add(IPAddressToString(_dnsAddress1));

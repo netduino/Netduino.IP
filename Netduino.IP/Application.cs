@@ -16,7 +16,7 @@ namespace Netduino.IP
         static System.Threading.Thread _applicationStartThread = null;
 
         static internal EthernetInterface _ethernetInterface = null;
-        static internal ArpResolver _arp = null;
+        static internal IPv4Layer _ipv4Layer = null;
 
         static Application()
         {
@@ -46,10 +46,10 @@ namespace Netduino.IP
             byte[] physicalAddress = (byte[])networkInterface.GetType().GetMethod("get_PhysicalAddress").Invoke(networkInterface, new object[] { });
             linkLayer.SetMacAddress(physicalAddress);
 
-            // create Ethernet object
+            // create EthernetInterface instance
             _ethernetInterface = new Netduino.IP.EthernetInterface(linkLayer);
-            // create ARP object
-            _arp = new ArpResolver(_ethernetInterface);
+            // create our IPv4Layer instance
+            _ipv4Layer = new IPv4Layer(_ethernetInterface);
 
             // start up our link layer
             linkLayer.Start();

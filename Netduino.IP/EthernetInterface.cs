@@ -39,7 +39,7 @@ namespace Netduino.IP
         {
             if (_isDisposed) throw new ObjectDisposedException();
 
-            // first, raise our LinkStateChanged event; this will let IPv4 to send a gratuitous ARP immediately.
+            // first, raise our LinkStateChanged event; this will let our IPv4Layer send a gratuitous ARP immediately.
             if (LinkStateChanged != null)
                 LinkStateChanged(this, state);
 
@@ -165,13 +165,18 @@ namespace Netduino.IP
                 if (_cachedPhysicalAddress == null) return 0;
 
                 return
-                    (((UInt64)_cachedPhysicalAddress[0]) << 40) &
-                    (((UInt64)_cachedPhysicalAddress[1]) << 32) &
-                    (((UInt64)_cachedPhysicalAddress[2]) << 24) &
-                    (((UInt64)_cachedPhysicalAddress[3]) << 16) &
-                    (((UInt64)_cachedPhysicalAddress[4]) << 8) &
+                    (((UInt64)_cachedPhysicalAddress[0]) << 40) |
+                    (((UInt64)_cachedPhysicalAddress[1]) << 32) |
+                    (((UInt64)_cachedPhysicalAddress[2]) << 24) |
+                    (((UInt64)_cachedPhysicalAddress[3]) << 16) |
+                    (((UInt64)_cachedPhysicalAddress[4]) << 8) |
                     (((UInt64)_cachedPhysicalAddress[5]) << 0);
             }
+        }
+
+        public bool GetLinkState()
+        {
+            return _linkLayer.GetLinkState();
         }
 
         public void Dispose()

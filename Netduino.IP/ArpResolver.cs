@@ -320,12 +320,12 @@ namespace Netduino.IP
             {
                 _sendArpGenericInBackgroundEvent.WaitOne();
 
+                // if we have been disposed, shut down our thread now.
+                if (_isDisposed)
+                    return;
+
                 while ((_sendArpGenericInBackgroundQueue != null) && (_sendArpGenericInBackgroundQueue.Count > 0))
                 {
-                    // if we have been disposed, shut down our thread now.
-                    if (_isDisposed)
-                        return;
-
                     try
                     {
                         ArpGenericData arpGenericData = (ArpGenericData)_sendArpGenericInBackgroundQueue.Dequeue();
@@ -335,6 +335,10 @@ namespace Netduino.IP
                     {
                         // reply queue was empty
                     }
+
+                    // if we have been disposed, shut down our thread now.
+                    if (_isDisposed)
+                        return;
                 }
             }
         }
