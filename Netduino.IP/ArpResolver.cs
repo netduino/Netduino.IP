@@ -264,8 +264,7 @@ namespace Netduino.IP
                     // send the ARP request
                     SendArpRequest(ipAddress, timeoutInMachineTicks);
                     // wait on a reply (for up to our timeout time or 1 second...whichever is less)
-                    waitTimeout = System.Math.Min((Int32)((timeoutInMachineTicks != Int64.MaxValue) ? (timeoutInMachineTicks - Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks) / System.TimeSpan.TicksPerMillisecond : 1000), 1000);
-                    if (waitTimeout < 0) waitTimeout = 0;
+                    waitTimeout = System.Math.Min((Int32)((timeoutInMachineTicks != Int64.MaxValue) ? Math.Max((timeoutInMachineTicks - Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks) / System.TimeSpan.TicksPerMillisecond, 0) : 1000), 1000);
                     _currentArpRequestAnsweredEvent.WaitOne(waitTimeout, false);
 
                     // if we received an ARP reply, add it to our cache table

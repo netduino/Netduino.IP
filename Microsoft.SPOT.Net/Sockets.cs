@@ -18,32 +18,44 @@ namespace Microsoft.SPOT.Net
 
         public static int socket(int family, int type, int protocol)
         {
-			throw new NotImplementedException();
+            //return Netduino.IP.SocketsInterface.socket(family, type, protocol);
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("socket", BindingFlags.Public | BindingFlags.Static);
+            return (int)(methodInfo.Invoke(null, new object[] { family, type, protocol }));
         }
 
         public static void bind(int handle, byte[] address)
         {
-			throw new NotImplementedException();
+            //return Netduino.IP.SocketsInterface.bind(handle, address);
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("bind", BindingFlags.Public | BindingFlags.Static);
+            methodInfo.Invoke(null, new object[] { handle, address });
         }
 
         public static void connect(int handle, byte[] address, bool fThrowOnWouldBlock)
         {
-			throw new NotImplementedException();
+            //return Netduino.IP.SocketsInterface.connect(handle, address, fThrowOnWouldBlock);
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("connect", BindingFlags.Public | BindingFlags.Static);
+            methodInfo.Invoke(null, new object[] { handle, address, fThrowOnWouldBlock });
         }
 
         public static int send(int handle, byte[] buf, int offset, int count, int flags, int timeout_ms)
         {
-			throw new NotImplementedException();
+            //return Netduino.IP.SocketsInterface.send(handle, buf, offset, count, flags, timeout_ms);
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("send", BindingFlags.Public | BindingFlags.Static);
+            return (int)(methodInfo.Invoke(null, new object[] { handle, buf, offset, count, flags, timeout_ms }));
         }
 
         public static int recv(int handle, byte[] buf, int offset, int count, int flags, int timeout_ms)
         {
-			throw new NotImplementedException();
+            //return Netduino.IP.SocketsInterface.recv(handle, buf, offset, count, flags, timeout_ms);
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("recv", BindingFlags.Public | BindingFlags.Static);
+            return (int)(methodInfo.Invoke(null, new object[] { handle, buf, offset, count, flags, timeout_ms }));
         }
 
         public static int close(int handle)
         {
-			throw new NotImplementedException();
+            //return Netduino.IP.SocketsInterface.close(handle);
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("close", BindingFlags.Public | BindingFlags.Static);
+            return (int)(methodInfo.Invoke(null, new object[] { handle }));
         }
 
         public static void listen(int handle, int backlog)
@@ -69,12 +81,19 @@ namespace Microsoft.SPOT.Net
 
         public static int sendto(int handle, byte[] buf, int offset, int count, int flags, int timeout_ms, byte[] address)
         {
-			throw new NotImplementedException();
+            //return Netduino.IP.SocketsInterface.sendto(handle, buf, offset, count, flags, timeout_ms, address);
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("sendto", BindingFlags.Public | BindingFlags.Static);
+            return (int)(methodInfo.Invoke(null, new object[] { handle, buf, offset, count, flags, timeout_ms, address }));
         }
 
         public static int recvfrom(int handle, byte[] buf, int offset, int count, int flags, int timeout_ms, ref byte[] address)
         {
-			throw new NotImplementedException();
+            //return Netduino.IP.SocketsInterface.recvfrom(handle, buf, offset, count, flags, timeout_ms, ref address);
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("recvfrom_reflection", BindingFlags.Public | BindingFlags.Static);
+            object[] retObjArray = (object[])methodInfo.Invoke(null, new object[] { handle, buf, offset, count, flags, timeout_ms, address });
+            int retVal = (int)retObjArray[0];
+            address = (byte[])retObjArray[1];
+            return retVal;
         }
 
         public static void getpeername(int handle, out byte[] address)

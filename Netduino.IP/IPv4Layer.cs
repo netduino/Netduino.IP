@@ -156,6 +156,7 @@ namespace Netduino.IP
             // initialize our buffers
             for (int i = 0; i < _receivedPacketBuffers.Length; i++ )
             {
+                _receivedPacketBuffers[i] = new ReceivedPacketBuffer();
                 InitializeReceivedPacketBuffer(_receivedPacketBuffers[i]);
             }
 
@@ -198,8 +199,10 @@ namespace Netduino.IP
             // if checksum does not match then drop packet
             if (checksum != 0x0000) return;
 
-            /* TODO: process frame ID field (which uniquely identifies each frame), and deal with fragments of those frames; we will not however process datagrams/frames larger than 1536 bytes total. */
-            /* NOTE: we will have to cache partial frames in this class until all fragments are received (or timeout occurs) since we may not receive the fragment which indicates which socketHandle is the target until the 2nd or later fragment */
+            /* NOTE: while we support reassmbly of fragmented frames, we will not process frames larger than 1536 bytes total. */
+            /* NOTE: we have to cache partial frames in this class until all fragments are received (or timeout occurs) since we may not receive the fragment which indicates which socketHandle is the target until the 2nd or later fragment */
+
+            /* TODO: add timer-based function which cleans up timed-out ReceivedPacketBuffers, in case we did not receive all fragments of a frame. */
             /* NOTE: we will enable a 30 second timeout PER INCOMING DATAGRAM; if all fragments have not been received before the timeout then we will discard the datagram from our buffers and send an ICMPv4 Time Exceeded (code 1) message;
              *       we do not restart the timeout after every fragment...it is a maximum timeout for the entire datagram.  also note that we can only send the ICMP timeout if we have received frame 0 (with the source port information) */
             UInt16 identification = (UInt16)((buffer[index + 4] << 8) + buffer[index + 5]);
@@ -211,8 +214,8 @@ namespace Netduino.IP
             ProtocolType protocol = (ProtocolType)buffer[index + 9];
 
             // get our source and destination IP addresses
-            UInt32 sourceIPAddress = (UInt32)((buffer[index + 12] << 24) + (buffer[index + 13] << 24) + (buffer[index + 14] << 24) + buffer[index + 15]);
-            UInt32 destinationIPAddress = (UInt32)((buffer[index + 16] << 24) + (buffer[index + 17] << 24) + (buffer[index + 18] << 24) + buffer[index + 19]);
+            UInt32 sourceIPAddress = (UInt32)((buffer[index + 12] << 24) + (buffer[index + 13] << 16) + (buffer[index + 14] << 8) + buffer[index + 15]);
+            UInt32 destinationIPAddress = (UInt32)((buffer[index + 16] << 24) + (buffer[index + 17] << 16) + (buffer[index + 18] << 8) + buffer[index + 19]);
 
             /* save this datagram in an incoming frame buffer; discard it if we do not have enough incoming frame buffers */
             ReceivedPacketBuffer receivedPacketBuffer = GetReceivedPacketBuffer(sourceIPAddress, destinationIPAddress, identification);
@@ -245,10 +248,10 @@ namespace Netduino.IP
                         AddReceivedPacketBufferHoleEntry(receivedPacketBuffer, holeFirstIndex, fragmentOffset - 1);
                     }
 
-                    if ((fragmentOffset + actualFragmentLength - 1 < holeLastIndex) && moreFragments)
+                    if (fragmentOffset + actualFragmentLength - 1 < holeLastIndex)
                     {
                         // our fragment does not fill the entire hole; create a hole entry to indicate that the last part of the hole is still not filled.
-                        AddReceivedPacketBufferHoleEntry(receivedPacketBuffer, fragmentOffset + actualFragmentLength - 1, holeLastIndex);
+                        AddReceivedPacketBufferHoleEntry(receivedPacketBuffer, fragmentOffset + actualFragmentLength , holeLastIndex);
                     }
                 }
                 // now determine if there are any missing fragments
@@ -257,7 +260,7 @@ namespace Netduino.IP
                     // if this fragment is the final fragment (which lets us know the total size of our buffer), eliminate the "infinite-reaching" hole
                     if (moreFragments == false)
                     {
-                        receivedPacketBuffer.ActualBufferLength = fragmentOffset + actualFragmentLength - 1;
+                        receivedPacketBuffer.ActualBufferLength = fragmentOffset + actualFragmentLength;
                         if (receivedPacketBuffer.Holes[i].LastIndex == Int32.MaxValue)
                         {
                             if (receivedPacketBuffer.Holes[i].FirstIndex == fragmentOffset + actualFragmentLength)
@@ -292,7 +295,7 @@ namespace Netduino.IP
             Int32 availableIndex = -1;
             for (Int32 i = 0; i < receivedPacketBuffer.Holes.Length; i++)
             {
-                if (receivedPacketBuffer.Holes[i].FirstIndex != -1 && receivedPacketBuffer.Holes[i].LastIndex != -1)
+                if (receivedPacketBuffer.Holes[i].FirstIndex == -1 && receivedPacketBuffer.Holes[i].LastIndex == -1)
                 {
                     availableIndex = i;
                     break;
@@ -327,7 +330,7 @@ namespace Netduino.IP
                         {
                             if ((_sockets[i] != null) &&
                                 (_sockets[i].ProtocolType == ProtocolType.Udp) &&
-                                (_sockets[i].DestinationIPPort == destinationIPPort))
+                                (_sockets[i].SourceIPPort == destinationIPPort))
                             {
                                 socketHandle = i;
                             }
@@ -407,8 +410,19 @@ namespace Netduino.IP
             return null;
         }
 
-        /* this function returns a new socket...or null if no socket could be allocated */
-        internal Socket CreateSocket(ProtocolType protocolType)
+        internal void CloseSocket(int handle)
+        {
+            _sockets[handle].Dispose();
+            _sockets[handle] = null;
+
+            lock (_handlesInUseBitmaskLockObject)
+            {
+                _handlesInUseBitmask &= ~((UInt64)1 << handle);
+            }
+        }
+
+        /* this function returns a new handle...or -1 if no socket could be allocated */
+        internal Int32 CreateSocket(ProtocolType protocolType)
         {
             switch (protocolType)
             {
@@ -418,13 +432,13 @@ namespace Netduino.IP
                         if (handle != -1)
                         {
                             _sockets[handle] = new UdpSocket(this, handle);
-                            return _sockets[handle];
+                            return handle;
                         }
                         else
                         {
                             // no handle available
                             //throw new System.Net.Sockets.SocketException(System.Net.Sockets.SocketError.TooManyOpenSockets);
-                            return null;
+                            return -1;
                         }
                     }
                     break;
@@ -497,8 +511,7 @@ namespace Netduino.IP
                 bool loopbackBufferInUse = _loopbackBufferInUse;
                 if (loopbackBufferInUse)
                 {
-                    Int32 waitTimeout = System.Math.Min((Int32)((timeoutInMachineTicks != Int64.MaxValue) ? (timeoutInMachineTicks - Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks) / System.TimeSpan.TicksPerMillisecond : 1000), 1000);
-                    if (waitTimeout < 0) waitTimeout = 0;
+                    Int32 waitTimeout = (Int32)((timeoutInMachineTicks != Int64.MaxValue) ? System.Math.Max((timeoutInMachineTicks - Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks) / System.TimeSpan.TicksPerMillisecond, 0) : System.Threading.Timeout.Infinite);
                     loopbackBufferInUse = !(_loopbackBufferFreedEvent.WaitOne(waitTimeout, false));
                 }
 
@@ -608,13 +621,6 @@ namespace Netduino.IP
                     _indexArray[0] = 0;
                     _countArray[0] = headerLength;
 
-                    for (int i = 0; i < buffer.Length; i++)
-                    {
-                        _bufferArray[i + 1] = buffer[i];
-                        _indexArray[i + 1] = offset[i];
-                        _countArray[i + 1] = count[i];
-                    }
-
                     Int32 totalBufferOffset = 0;
                     Int32 bufferArrayLength = 1; /* we start with index 1, after our IPv4 header */
                     for (int i = 0; i < buffer.Length; i++)
@@ -624,7 +630,7 @@ namespace Netduino.IP
                             // add data from this buffer to our set of downstream buffers
                             _bufferArray[bufferArrayLength] = buffer[i];
                             _indexArray[bufferArrayLength] = offset[i] + System.Math.Max(0, (fragmentOffset - totalBufferOffset));
-                            _indexArray[bufferArrayLength] = System.Math.Max(count[i] - System.Math.Max(0, (fragmentOffset - totalBufferOffset)), fragmentLength - totalBufferOffset);
+                            _countArray[bufferArrayLength] = System.Math.Min(count[i] - System.Math.Max(0, (fragmentOffset - totalBufferOffset)), fragmentLength - totalBufferOffset);
                             bufferArrayLength++;
                         }
                         else
@@ -673,6 +679,9 @@ namespace Netduino.IP
                 // check and make sure we're not already using this port # on another socket (although ports used on TCP can be re-used on UDP, etc.)
                 foreach (Socket socket in _sockets)
                 {
+                    if (socket == null)
+                        continue;
+
                     if (socket.SourceIPPort == nextEphemeralPort && socket.ProtocolType == protocolType)
                         foundAvailablePort = false;
                 }

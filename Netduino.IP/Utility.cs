@@ -25,7 +25,7 @@ namespace Netduino.IP
         public static UInt16 CalculateInternetChecksum(byte[][] buffer, int[] offset, int[] count, int numBuffers)
         {
             int totalLength = 0;
-            for (int iBuffer = 0; iBuffer < buffer.Length; iBuffer++)
+            for (int iBuffer = 0; iBuffer < numBuffers; iBuffer++)
             {
                 totalLength += count[iBuffer];
             }
@@ -33,9 +33,9 @@ namespace Netduino.IP
             UInt32 checksum = 0;
             int extraPadding = 0;
 
-            for (int iBuffer = 0; iBuffer < buffer.Length; iBuffer++)
+            for (int iBuffer = 0; iBuffer < numBuffers; iBuffer++)
             {
-                if (iBuffer == buffer.Length - 1)
+                if (iBuffer == numBuffers - 1)
                     extraPadding += (totalLength % 2 == 0) ? 0 : 1;
 
                 for (int i = offset[iBuffer]; i < offset[iBuffer] + count[iBuffer] + extraPadding; i += 2)

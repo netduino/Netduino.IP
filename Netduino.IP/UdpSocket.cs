@@ -14,6 +14,8 @@ namespace Netduino.IP
         byte[] _udpPseudoHeaderBuffer = new byte[UDP_PSEUDO_HEADER_LENGTH];
         object _udpPseudoHeaderBufferLockObject = new object();
 
+        bool _sourceIpAddressAndPortAssigned = false;
+
         /* TODO: consider using a pool of global ReceivedPacketBuffers instead of creating a single buffer per socket */
         internal class ReceivedPacketBuffer
         {
@@ -48,9 +50,17 @@ namespace Netduino.IP
 
         public override void Bind(UInt32 ipAddress, UInt16 ipPort)
         {
+            if (_sourceIpAddressAndPortAssigned)
+                throw new Exception(); /* is this correct; should we throw an exception if we already have an IP address/port assigned? */
+
+            _sourceIpAddressAndPortAssigned = true;
+
             // if ipAddress is IP_ADDRESS_ANY, then change it to to our actual ipAddress.
             if (ipAddress == IP_ADDRESS_ANY)
                 ipAddress = _ipv4Layer.IPAddress;
+
+            if (ipPort == IP_PORT_ANY)
+                ipPort = _ipv4Layer.GetNextEphemeralPortNumber(IPv4Layer.ProtocolType.Udp) /* next available ephemeral port # */;
 
             // verify that this source IP address is correct
             if (ipAddress != _ipv4Layer.IPAddress)
@@ -60,7 +70,8 @@ namespace Netduino.IP
             for (int iSocketHandle = 0; iSocketHandle < IPv4Layer.MAX_SIMULTANEOUS_SOCKETS; iSocketHandle++)
             {
                 Socket socket = _ipv4Layer.GetSocket(iSocketHandle);
-                if (socket.ProtocolType == IPv4Layer.ProtocolType.Udp &&
+                if (socket != null && 
+                    socket.ProtocolType == IPv4Layer.ProtocolType.Udp &&
                     socket.SourceIPAddress == ipAddress && 
                     socket.SourceIPPort == ipPort)
                 {
@@ -74,14 +85,8 @@ namespace Netduino.IP
 
         public override void Connect(UInt32 ipAddress, UInt16 ipPort)
         {
-            if (_srcIPAddress == IP_ADDRESS_ANY)
-            {
-                _srcIPAddress = _ipv4Layer.IPAddress;
-            }
-            if (_srcIPPort != IP_PORT_ANY)
-            {
-                _srcIPPort = _ipv4Layer.GetNextEphemeralPortNumber(IPv4Layer.ProtocolType.Udp); // next available ephemeral port #
-            }
+            if (!_sourceIpAddressAndPortAssigned)
+                Bind(IP_ADDRESS_ANY, IP_PORT_ANY);
 
             // UDP is connectionless, so the Connect function sets the default destination IP address and port values.
             _destIPAddress = ipAddress;
@@ -161,13 +166,16 @@ namespace Netduino.IP
         /* TODO: we can't lock permanently while waiting for another UDP packet to be sent; get rid of the _udpHeaderBufferLock "lock that could stay locked forever" */
         public override Int32 SendTo(byte[] buffer, Int32 offset, Int32 count, Int32 flags, Int64 timeoutInMachineTicks, UInt32 ipAddress, UInt16 ipPort)
         {
+            if (!_sourceIpAddressAndPortAssigned)
+                Bind(IP_ADDRESS_ANY, IP_PORT_ANY);
+
             lock (_udpHeaderBufferLockObject)
             {
                 // UDP header: 8 bytes
                 _udpHeaderBuffer[0] = (byte)((_srcIPPort >> 8) & 0xFF);
                 _udpHeaderBuffer[1] = (byte)(_srcIPPort & 0xFF);
-                _udpHeaderBuffer[2] = (byte)((_destIPPort >> 8) & 0xFF);
-                _udpHeaderBuffer[3] = (byte)(_destIPPort & 0xFF);
+                _udpHeaderBuffer[2] = (byte)((ipPort >> 8) & 0xFF);
+                _udpHeaderBuffer[3] = (byte)(ipPort & 0xFF);
                 UInt16 udpLength = (UInt16)(UDP_HEADER_LENGTH + count);
                 _udpHeaderBuffer[4] = (byte)((udpLength >> 8) & 0xFF);
                 _udpHeaderBuffer[5] = (byte)(udpLength & 0xFF);
@@ -182,10 +190,10 @@ namespace Netduino.IP
                     _udpPseudoHeaderBuffer[1] = (byte)((_srcIPAddress >> 16) & 0xFF);
                     _udpPseudoHeaderBuffer[2] = (byte)((_srcIPAddress >> 8) & 0xFF);
                     _udpPseudoHeaderBuffer[3] = (byte)(_srcIPAddress & 0xFF);
-                    _udpPseudoHeaderBuffer[4] = (byte)((_destIPAddress >> 24) & 0xFF);
-                    _udpPseudoHeaderBuffer[5] = (byte)((_destIPAddress >> 16) & 0xFF);
-                    _udpPseudoHeaderBuffer[6] = (byte)((_destIPAddress >> 8) & 0xFF);
-                    _udpPseudoHeaderBuffer[7] = (byte)(_destIPAddress & 0xFF);
+                    _udpPseudoHeaderBuffer[4] = (byte)((ipAddress >> 24) & 0xFF);
+                    _udpPseudoHeaderBuffer[5] = (byte)((ipAddress >> 16) & 0xFF);
+                    _udpPseudoHeaderBuffer[6] = (byte)((ipAddress >> 8) & 0xFF);
+                    _udpPseudoHeaderBuffer[7] = (byte)(ipAddress & 0xFF);
                     _udpPseudoHeaderBuffer[8] = 0; // ZERO
                     _udpPseudoHeaderBuffer[9] = (byte)IPv4Layer.ProtocolType.Udp; // Protocol Number
                     _udpPseudoHeaderBuffer[10] = (byte)((udpLength >> 8) & 0xFF);
@@ -217,7 +225,7 @@ namespace Netduino.IP
                 _countArray[1] = count;
 
                 /* TODO: deal with our flags and timeout_ms; we shouldn't just be sending while blocking -- and ignoring the flags */
-                _ipv4Layer.Send((byte)IPv4Layer.ProtocolType.Udp, _srcIPAddress, _destIPAddress, _bufferArray, _indexArray, _countArray, timeoutInMachineTicks);
+                _ipv4Layer.Send((byte)IPv4Layer.ProtocolType.Udp, _srcIPAddress, ipAddress, _bufferArray, _indexArray, _countArray, timeoutInMachineTicks);
             }
 
             /* TODO: return actual # of bytes sent, if different; this may be caused by a limit on UDP datagram size, timeout while sending data, etc. */
@@ -235,8 +243,7 @@ namespace Netduino.IP
         {
             if (_receivedPacketBuffer.IsEmpty)
             {
-                Int32 waitTimeout = System.Math.Min((Int32)((timeoutInMachineTicks != Int64.MaxValue) ? (timeoutInMachineTicks - Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks) / System.TimeSpan.TicksPerMillisecond : 1000), 1000);
-                if (waitTimeout < 0) waitTimeout = 0;
+                Int32 waitTimeout = (Int32)((timeoutInMachineTicks != Int64.MaxValue) ? System.Math.Max((timeoutInMachineTicks - Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks) / System.TimeSpan.TicksPerMillisecond, 0) : System.Threading.Timeout.Infinite);
                 if (!_receivedPacketBufferFilledEvent.WaitOne(waitTimeout, false))
                 {
                     /* TODO: do we need to throw a timeout exception here, or just return zero bytes? */
@@ -310,13 +317,13 @@ namespace Netduino.IP
 
                 UInt16 sourceIPPort = (UInt16)((((UInt16)buffer[index + 0]) << 8) + buffer[index + 1]);
 
-                _receivedPacketBuffer.IsEmpty = false;
                 Array.Copy(buffer, index + UDP_HEADER_LENGTH, _receivedPacketBuffer.Buffer, 0, count - UDP_HEADER_LENGTH);
                 _receivedPacketBuffer.ActualBufferLength = count - UDP_HEADER_LENGTH;
 
                 _receivedPacketBuffer.SourceIPAddress = sourceIPAddress;
                 _receivedPacketBuffer.SourceIPPort = sourceIPPort;
 
+                _receivedPacketBuffer.IsEmpty = false;
                 _receivedPacketBufferFilledEvent.Set();
             }
         }

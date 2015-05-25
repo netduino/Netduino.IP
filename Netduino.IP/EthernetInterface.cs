@@ -94,13 +94,15 @@ namespace Netduino.IP
                 case 0x0800: /* IPv4 */
                     {
                         if (IPv4PacketReceived != null)
-                            IPv4PacketReceived(this, buffer, index + ETHERNET_HEADER_LENGTH, count - ETHERNET_HEADER_LENGTH - ETHERNET_FCS_LENGTH);
+                            IPv4PacketReceived(this, buffer, index + ETHERNET_HEADER_LENGTH, count - ETHERNET_HEADER_LENGTH);
+                            //IPv4PacketReceived(this, buffer, index + ETHERNET_HEADER_LENGTH, count - ETHERNET_HEADER_LENGTH - ETHERNET_FCS_LENGTH);
                     }
                     break;
                 case 0x0806: /* ARP */
                     {
                         if (ARPFrameReceived != null)
-                            ARPFrameReceived(this, buffer, index + ETHERNET_HEADER_LENGTH, count - ETHERNET_HEADER_LENGTH - ETHERNET_FCS_LENGTH);
+                            ARPFrameReceived(this, buffer, index + ETHERNET_HEADER_LENGTH, count - ETHERNET_HEADER_LENGTH);
+                            //ARPFrameReceived(this, buffer, index + ETHERNET_HEADER_LENGTH, count - ETHERNET_HEADER_LENGTH - ETHERNET_FCS_LENGTH);
                     }
                     break;
                 default: /* unsupported data type: drop the frame */
