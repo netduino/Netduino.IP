@@ -155,39 +155,44 @@ namespace Microsoft.SPOT.Net.NetworkInformation
 
         public void EnableStaticIP(string ipAddress, string subnetMask, string gatewayAddress)
         {
-            try
-            {
-                _ipAddress = IPAddressFromString(ipAddress);
-                _subnetMask = IPAddressFromString(subnetMask);
-                _gatewayAddress = IPAddressFromString(gatewayAddress);
-                _flags &= ~FLAGS_DHCP;
+            /* TODO: DELETE THESE NEXT THERE LINES; THEY ARE ONLY HERE TO SUPRESS A WARNING */
+            _ipAddress = IPAddressFromString(ipAddress);
+            _subnetMask = IPAddressFromString(subnetMask);
+            _gatewayAddress = IPAddressFromString(gatewayAddress);
 
-				/* NOTE: see CC3100 driver for details */
-	            throw new NotImplementedException();
+            /* NOTE: see CC3100 driver for details */
+            throw new NotImplementedException();
 
-                UpdateConfiguration(UPDATE_FLAGS_DHCP);
-            }
-            finally
-            {
-                ReloadSettings();
-            }
+            //try
+            //{
+            //    _ipAddress = IPAddressFromString(ipAddress);
+            //    _subnetMask = IPAddressFromString(subnetMask);
+            //    _gatewayAddress = IPAddressFromString(gatewayAddress);
+            //    _flags &= ~FLAGS_DHCP;
+
+            //    UpdateConfiguration(UPDATE_FLAGS_DHCP);
+            //}
+            //finally
+            //{
+            //    ReloadSettings();
+            //}
         }
 
         public void EnableDhcp()
         {
-            try
-            {
-                _flags |= FLAGS_DHCP;
+            /* NOTE: see CC3100 driver for details */
+            throw new NotImplementedException();
 
-				/* NOTE: see CC3100 driver for details */
-	            throw new NotImplementedException();
+            //try
+            //{
+            //    _flags |= FLAGS_DHCP;
 
-                UpdateConfiguration(UPDATE_FLAGS_DHCP);
-            }
-            finally
-            {
-                ReloadSettings();
-            }
+            //    UpdateConfiguration(UPDATE_FLAGS_DHCP);
+            //}
+            //finally
+            //{
+            //    ReloadSettings();
+            //}
         }
 
         public void EnableStaticDns(string[] dnsAddresses)
@@ -244,11 +249,27 @@ namespace Microsoft.SPOT.Net.NetworkInformation
         public string IPAddress
         {
             get 
-            { 
-			    /* TODO: add support for DHCP-allocated IP addresses */
-                if (IsDhcpEnabled) throw new NotImplementedException();
-
-                return IPAddressToString(_ipAddress); 
+            {
+                if (IsDhcpEnabled)
+                {
+                    var ipv4Layer = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetField("_ipv4Layer", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+                    UInt32 ipAddress = (ipv4Layer == null ? 0 : (UInt32)ipv4Layer.GetType().GetField("_ipv4configIPAddress", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(ipv4Layer));
+                    if (SystemInfo.IsBigEndian == false)
+                    {
+                        // reverse bytes
+                        ipAddress = (
+                            (((ipAddress >> 24) & 0xFF) << 0) +
+                            (((ipAddress >> 16) & 0xFF) << 8) +
+                            (((ipAddress >> 8) & 0xFF) << 16) +
+                            (((ipAddress >> 0) & 0xFF) << 24)
+                            );
+                    }
+                    return IPAddressToString(ipAddress);
+                }
+                else
+                {
+                    return IPAddressToString(_ipAddress);
+                }
             }
         }
 
@@ -256,10 +277,26 @@ namespace Microsoft.SPOT.Net.NetworkInformation
         {
             get 
             {
-                /* TODO: add support for DHCP-allocated IP addresses */
-                if (IsDhcpEnabled) throw new NotImplementedException();
-
-                return IPAddressToString(_gatewayAddress); 
+                if (IsDhcpEnabled)
+                {
+                    var ipv4Layer = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetField("_ipv4Layer", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+                    UInt32 gatewayAddress = (ipv4Layer == null ? 0 : (UInt32)ipv4Layer.GetType().GetField("_ipv4configGatewayAddress", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(ipv4Layer));
+                    if (SystemInfo.IsBigEndian == false)
+                    {
+                        // reverse bytes
+                        gatewayAddress = (
+                            (((gatewayAddress >> 24) & 0xFF) << 0) +
+                            (((gatewayAddress >> 16) & 0xFF) << 8) +
+                            (((gatewayAddress >> 8) & 0xFF) << 16) +
+                            (((gatewayAddress >> 0) & 0xFF) << 24)
+                            );
+                    }
+                    return IPAddressToString(gatewayAddress);
+                }
+                else
+                {
+                    return IPAddressToString(_gatewayAddress);
+                }
             }
         }
 
@@ -267,10 +304,26 @@ namespace Microsoft.SPOT.Net.NetworkInformation
         {
             get 
             {
-                /* TODO: add support for DHCP-allocated IP addresses */
-                if (IsDhcpEnabled) throw new NotImplementedException();
-
-                return IPAddressToString(_subnetMask); 
+                if (IsDhcpEnabled)
+                {
+                    var ipv4Layer = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetField("_ipv4Layer", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+                    UInt32 subnetMask = (ipv4Layer == null ? 0 : (UInt32)ipv4Layer.GetType().GetField("_ipv4configSubnetMask", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(ipv4Layer));
+                    if (SystemInfo.IsBigEndian == false)
+                    {
+                        // reverse bytes
+                        subnetMask = (
+                            (((subnetMask >> 24) & 0xFF) << 0) +
+                            (((subnetMask >> 16) & 0xFF) << 8) +
+                            (((subnetMask >> 8) & 0xFF) << 16) +
+                            (((subnetMask >> 0) & 0xFF) << 24)
+                            );
+                    }
+                    return IPAddressToString(subnetMask);
+                }
+                else
+                {
+                    return IPAddressToString(_subnetMask);
+                }
             }
         }
 
@@ -293,17 +346,36 @@ namespace Microsoft.SPOT.Net.NetworkInformation
             {
                 ArrayList list = new ArrayList();
 
-                /* TODO: add support for DHCP-allocated DNS addresses */
-                if (IsDynamicDnsEnabled) throw new NotImplementedException();
-
-                if (_dnsAddress1 != 0)
+                if (IsDynamicDnsEnabled)
                 {
-                    list.Add(IPAddressToString(_dnsAddress1));
+                    var ipv4Layer = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetField("_ipv4Layer", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+                    UInt32[] dnsAddreses = (ipv4Layer == null ? new UInt32[0] : (UInt32[])ipv4Layer.GetType().GetField("_ipv4configDnsAddresses", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(ipv4Layer));
+                    for (int iDnsAddress = 0; iDnsAddress < dnsAddreses.Length; iDnsAddress++ )
+                    {
+                        if (SystemInfo.IsBigEndian == false)
+                        {
+                            // reverse bytes
+                            dnsAddreses[iDnsAddress] = (
+                                (((dnsAddreses[iDnsAddress] >> 24) & 0xFF) << 0) +
+                                (((dnsAddreses[iDnsAddress] >> 16) & 0xFF) << 8) +
+                                (((dnsAddreses[iDnsAddress] >> 8) & 0xFF) << 16) +
+                                (((dnsAddreses[iDnsAddress] >> 0) & 0xFF) << 24)
+                                );
+                        }
+                        list.Add(IPAddressToString(dnsAddreses[iDnsAddress]));
+                    }
                 }
-
-                if (_dnsAddress2 != 0)
+                else
                 {
-                    list.Add(IPAddressToString(_dnsAddress2));
+                    if (_dnsAddress1 != 0)
+                    {
+                        list.Add(IPAddressToString(_dnsAddress1));
+                    }
+
+                    if (_dnsAddress2 != 0)
+                    {
+                        list.Add(IPAddressToString(_dnsAddress2));
+                    }
                 }
 
                 return (string[])list.ToArray(typeof(string));

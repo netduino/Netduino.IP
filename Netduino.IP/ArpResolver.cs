@@ -227,6 +227,10 @@ namespace Netduino.IP
          * NOTE: if the address could not be translated, the function returns zero. */
         internal UInt64 TranslateIPAddressToPhysicalAddress(UInt32 ipAddress, Int64 timeoutInMachineTicks)
         {
+            // if the ipAdderss is the broadcast address, return a broadcast MAC address
+            if (ipAddress == 0xFFFFFFFF)
+                return ETHERNET_BROADCAST_ADDRESS;
+
             ArpCacheEntry arpEntry = null;
 
             // retrieve our existing ARP entry, if it exists

@@ -31,6 +31,7 @@
   <ItemGroup>
     <Compile Include="Application.cs" />
     <Compile Include="ArpResolver.cs" />
+    <Compile Include="DHCPv4Client.cs" />
     <Compile Include="EthernetInterface.cs" />
     <Compile Include="IPv4Layer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

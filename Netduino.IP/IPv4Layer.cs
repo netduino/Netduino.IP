@@ -6,44 +6,19 @@ namespace Netduino.IP
 {
     internal class IPv4Layer : IDisposable 
     {
-
-        /*** TODO: we need to set our IPv4Address in the ArpResolver _every time_ that our IPAddress changes (and also when our IP address is first set, via DHCP or static IP) ***/
-        /*** TODO: we should re-send our gratuitious ARP every time that our IP address changes (via DHCP or otherwise), and also every time our network link goes up ***/
-        /*** TODO: if our IP address changes, should we update the source IP address on all of our sockets?  Should we close any active connection-based sockets?  ***/
-
-        /* PUT THIS LOGIC IN OUR IPv4 class, and also hooked into from our DHCP class! */
-        //void _ipv4_IPv4AddressChanged(object sender, uint ipAddress)
-        //{
-        //    Type networkChangeListenerType = Type.GetType("Microsoft.SPOT.Net.NetworkInformation.NetworkChange+NetworkChangeListener, Microsoft.SPOT.Net");
-        //    if (networkChangeListenerType != null)
-        //    {
-        //        // create instance of NetworkChangeListener
-        //        System.Reflection.ConstructorInfo networkChangeListenerConstructor = networkChangeListenerType.GetConstructor(new Type[] { });
-        //        object networkChangeListener = networkChangeListenerConstructor.Invoke(new object[] { });
-
-        //        // now call the ProcessEvent function to create a NetworkEvent class.
-        //        System.Reflection.MethodInfo processEventMethodType = networkChangeListenerType.GetMethod("ProcessEvent");
-        //        object networkEvent = processEventMethodType.Invoke(networkChangeListener, new object[] { (UInt32)(((UInt32)2 /* AddressChanged*/)), (UInt32)0, DateTime.Now }); /* TODO: should this be DateTime.Now or DateTime.UtcNow? */
-
-        //        // and finally call the static NetworkChange.OnNetworkChangeCallback function to raise the event.
-        //        Type networkChangeType = Type.GetType("Microsoft.SPOT.Net.NetworkInformation.NetworkChange, Microsoft.SPOT.Net");
-        //        if (networkChangeType != null)
-        //        {
-        //            System.Reflection.MethodInfo onNetworkChangeCallbackMethod = networkChangeType.GetMethod("OnNetworkChangeCallback", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-        //            onNetworkChangeCallbackMethod.Invoke(networkChangeType, new object[] { networkEvent });
-        //        }
-        //    }
-        //}
-
         EthernetInterface _ethernetInterface;
         bool _isDisposed = false;
 
         ArpResolver _arpResolver;
 
-        internal const byte MAX_SIMULTANEOUS_SOCKETS = 8; /* must be between 2 and 64; one socket is reserved for background UDP operations such as the DHCP and DNS clients */
+        DHCPv4Client _dhcpv4Client;
+
+        internal const byte MAX_SIMULTANEOUS_SOCKETS = 8; /* must be between 2 and 64; one socket (socket 0) is reserved for background operations such as the DHCP and DNS clients */
         static Netduino.IP.Socket[] _sockets = new Netduino.IP.Socket[MAX_SIMULTANEOUS_SOCKETS];
         UInt64 _handlesInUseBitmask = 0;
         object _handlesInUseBitmaskLockObject = new object();
+        AutoResetEvent _socketHandleReservedFreed = new AutoResetEvent(false);
+        AutoResetEvent _socketHandleUserFreed = new AutoResetEvent(false);
 
         // our IP configuration
         //UInt32 _ipv4configIPAddress = 0xC0A80564;     /* IP: 192.168.5.100 */
@@ -116,6 +91,8 @@ namespace Netduino.IP
 
         const byte DEFAULT_TIME_TO_LIVE = 64; /* default TTL recommended by RFC 1122 */
 
+        public event LinkStateChangedEventHandler LinkStateChanged;
+
         public enum ProtocolType : byte
         {
             Udp = 17,   // user datagram protocol
@@ -131,10 +108,12 @@ namespace Netduino.IP
 
             // retrieve our IP address configuration from the config sector and configure ARP
             object networkInterface = Netduino.IP.Interop.NetworkInterface.GetNetworkInterface(0);
-            bool dhcpEnabled = (bool)networkInterface.GetType().GetMethod("get_IsDhcpEnabled").Invoke(networkInterface, new object[] { });
+            bool dhcpIpConfigEnabled = (bool)networkInterface.GetType().GetMethod("get_IsDhcpEnabled").Invoke(networkInterface, new object[] { });
+            /* NOTE: IsDynamicDnsEnabled is improperly implemented in NETMF; it should implement dynamic DNS--but instead it returns whether or not DNS addresses are assigned through DHCP */
+            bool dhcpDnsConfigEnabled = (bool)networkInterface.GetType().GetMethod("get_IsDynamicDnsEnabled").Invoke(networkInterface, new object[] { });
 
             // configure our ARP resolver's default IP address settings
-            if (dhcpEnabled)
+            if (dhcpIpConfigEnabled)
             {
                 // in case of DHCP, temporarily set our IP address to IP_ADDRESS_ANY (0.0.0.0)
                 _arpResolver.SetIpv4Address(0);
@@ -144,13 +123,17 @@ namespace Netduino.IP
                 _ipv4configIPAddress = ConvertIPAddressStringToUInt32BE((string)networkInterface.GetType().GetMethod("get_IPAddress").Invoke(networkInterface, new object[] { }));
                 _ipv4configSubnetMask = ConvertIPAddressStringToUInt32BE((string)networkInterface.GetType().GetMethod("get_SubnetMask").Invoke(networkInterface, new object[] { }));
                 _ipv4configGatewayAddress = ConvertIPAddressStringToUInt32BE((string)networkInterface.GetType().GetMethod("get_GatewayAddress").Invoke(networkInterface, new object[] { }));
+                _arpResolver.SetIpv4Address(_ipv4configIPAddress);
+            }
+            // retrieve our DnsServer IP address configuration
+            if (!dhcpDnsConfigEnabled)
+            {
                 string[] dnsAddressesString = (string[])networkInterface.GetType().GetMethod("get_DnsAddresses").Invoke(networkInterface, new object[] { });
                 _ipv4configDnsAddresses = new UInt32[dnsAddressesString.Length];
                 for (int iDnsAddress = 0; iDnsAddress < _ipv4configDnsAddresses.Length; iDnsAddress++)
                 {
                     _ipv4configDnsAddresses[iDnsAddress] = ConvertIPAddressStringToUInt32BE(dnsAddressesString[iDnsAddress]);
                 }
-                _arpResolver.SetIpv4Address(_ipv4configIPAddress);
             }
 
             // initialize our buffers
@@ -169,18 +152,77 @@ namespace Netduino.IP
             _loopbackThread = new Thread(LoopbackInBackgroundThread);
             _loopbackThread.Start();
 
+            // create our DHCP client instance
+            _dhcpv4Client = new DHCPv4Client(this);
+            _dhcpv4Client.IpConfigChanged += _dhcpv4Client_IpConfigChanged;
+            _dhcpv4Client.DnsConfigChanged += _dhcpv4Client_DnsConfigChanged;
+
+            // if we are configured to use DHCP, then create our DHCPv4Client instance now; its state machine will take care of ip configuration from there
+            if (dhcpIpConfigEnabled || dhcpDnsConfigEnabled)
+            {
+                _dhcpv4Client.IsDhcpIpConfigEnabled = dhcpIpConfigEnabled;
+                _dhcpv4Client.IsDhcpDnsConfigEnabled = dhcpDnsConfigEnabled;
+            }
+
             // manually fire our LinkStateChanged event to set the initial state of our link.
             _ethernetInterface_LinkStateChanged(_ethernetInterface, _ethernetInterface.GetLinkState());
         }
 
+        void _dhcpv4Client_DnsConfigChanged(object sender, uint[] dnsAddresses)
+        {
+            _ipv4configDnsAddresses = new UInt32[System.Math.Min(dnsAddresses.Length, 2)];
+            Array.Copy(dnsAddresses, _ipv4configDnsAddresses, _ipv4configDnsAddresses.Length);
+        }
+
+        void _dhcpv4Client_IpConfigChanged(object sender, uint ipAddress, uint gatewayAddress, uint subnetMask)
+        {
+            _ipv4configIPAddress = ipAddress;
+            _ipv4configSubnetMask = subnetMask;
+            _ipv4configGatewayAddress = gatewayAddress;
+
+            _arpResolver.SetIpv4Address(_ipv4configIPAddress);
+
+            /*** TODO: we should re-send our gratuitious (or probe) ARP every time that our IP address changes (via DHCP or otherwise), and also every time our network link goes up ***/
+            /*** TODO: if our IP address changes, should we update the source IP address on all of our sockets?  Should we close any active connection-based sockets?  ***/
+
+            Type networkChangeListenerType = Type.GetType("Microsoft.SPOT.Net.NetworkInformation.NetworkChange+NetworkChangeListener, Microsoft.SPOT.Net");
+            if (networkChangeListenerType != null)
+            {
+                // create instance of NetworkChangeListener
+                System.Reflection.ConstructorInfo networkChangeListenerConstructor = networkChangeListenerType.GetConstructor(new Type[] { });
+                object networkChangeListener = networkChangeListenerConstructor.Invoke(new object[] { });
+
+                // now call the ProcessEvent function to create a NetworkEvent class.
+                System.Reflection.MethodInfo processEventMethodType = networkChangeListenerType.GetMethod("ProcessEvent");
+                object networkEvent = processEventMethodType.Invoke(networkChangeListener, new object[] { (UInt32)(((UInt32)2 /* AddressChanged*/)), (UInt32)0, DateTime.Now }); /* TODO: should this be DateTime.Now or DateTime.UtcNow? */
+
+                // and finally call the static NetworkChange.OnNetworkChangeCallback function to raise the event.
+                Type networkChangeType = Type.GetType("Microsoft.SPOT.Net.NetworkInformation.NetworkChange, Microsoft.SPOT.Net");
+                if (networkChangeType != null)
+                {
+                    System.Reflection.MethodInfo onNetworkChangeCallbackMethod = networkChangeType.GetMethod("OnNetworkChangeCallback", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+                    onNetworkChangeCallbackMethod.Invoke(networkChangeType, new object[] { networkEvent });
+                }
+            }
+        }
+
         void _ethernetInterface_LinkStateChanged(object sender, bool state)
         {
-            /* TODO: we appear to be sending the gratuitous ARP too quickly upon first link; do we need to wait a few milliseconds before replying on the link to truly be "link up"?
-             *       consider adding a "delayUntilTicks" parameter to all ARP background-queued frames (which may also require them to be sorted by time).  
-             *       Also...if we are going to include an abritrary delay to our initial gratuitous ARP, perhaps we should do so by delaying the EthernetInterface.LinkStateChanged(true) event in the ILinkLayer driver
-             *       (on a per-chip basis, in case the delay is specific to certain MAC/PHY chips' requrirements for startup time rather than a network router requirement */
-            if (state == true)
-                _arpResolver.SendArpGratuitousInBackground();
+            object networkInterface = Netduino.IP.Interop.NetworkInterface.GetNetworkInterface(0);
+            bool dhcpEnabled = (bool)networkInterface.GetType().GetMethod("get_IsDhcpEnabled").Invoke(networkInterface, new object[] { });
+            if (!dhcpEnabled)
+            {
+                /* TODO: we appear to be sending the gratuitous ARP too quickly upon first link; do we need to wait a few milliseconds before replying on the link to truly be "link up"?
+                 *       consider adding a "delayUntilTicks" parameter to all ARP background-queued frames (which may also require them to be sorted by time).  
+                 *       Also...if we are going to include an abritrary delay to our initial gratuitous ARP, perhaps we should do so by delaying the EthernetInterface.LinkStateChanged(true) event in the ILinkLayer driver
+                 *       (on a per-chip basis, in case the delay is specific to certain MAC/PHY chips' requrirements for startup time rather than a network router requirement */
+                if (state == true)
+                    _arpResolver.SendArpGratuitousInBackground();
+            }
+
+            // if we have objects interested in link changes (such as a DHCPv4Client), let them know about the change now too.
+            if (LinkStateChanged != null)
+                LinkStateChanged(this, state);
         }
 
         void _ethernetInterface_IPv4PacketReceived(object sender, byte[] buffer, int index, int count)
@@ -332,7 +374,10 @@ namespace Netduino.IP
                                 (_sockets[i].ProtocolType == ProtocolType.Udp) &&
                                 (_sockets[i].SourceIPPort == destinationIPPort))
                             {
-                                socketHandle = i;
+                                if ((_ipv4configIPAddress == 0) || (destinationIPAddress == 0xFFFFFFFF) || (_ipv4configIPAddress == destinationIPAddress))
+                                {
+                                    socketHandle = i;
+                                }
                             }
                         }
 
@@ -412,23 +457,35 @@ namespace Netduino.IP
 
         internal void CloseSocket(int handle)
         {
-            _sockets[handle].Dispose();
-            _sockets[handle] = null;
+            if (_sockets[handle] != null)
+            {
+                _sockets[handle].Dispose();
+                _sockets[handle] = null;
+            }
 
             lock (_handlesInUseBitmaskLockObject)
             {
                 _handlesInUseBitmask &= ~((UInt64)1 << handle);
             }
+
+            if (handle == 0)
+            {
+                _socketHandleReservedFreed.Set();
+            }
+            else
+            {
+                _socketHandleUserFreed.Set();
+            }
         }
 
         /* this function returns a new handle...or -1 if no socket could be allocated */
-        internal Int32 CreateSocket(ProtocolType protocolType)
+        internal Int32 CreateSocket(ProtocolType protocolType, Int64 timeoutInMachineTicks, bool reservedSocket = false)
         {
             switch (protocolType)
             {
                 case ProtocolType.Udp:
                     {
-                        int handle = GetNextHandle();
+                        int handle = reservedSocket ? GetReservedHandle(timeoutInMachineTicks) : GetNextHandle(timeoutInMachineTicks);
                         if (handle != -1)
                         {
                             _sockets[handle] = new UdpSocket(this, handle);
@@ -441,7 +498,6 @@ namespace Netduino.IP
                             return -1;
                         }
                     }
-                    break;
                 default:
                     throw new NotSupportedException();
             }
@@ -452,23 +508,56 @@ namespace Netduino.IP
             return _sockets[handle];
         }
 
-        int GetNextHandle()
+        /* this function returns the reserved handle (handle zero) if it is available */
+        /* TODO: enable a timeout on this function which waits until the reserved handle is available */
+        int GetReservedHandle(Int64 timeoutInMachineTicks)
         {
-            lock (_handlesInUseBitmaskLockObject)
+            while (true)
             {
-                /* check all available handles from 1 to MAX_SIMULTANEOUS_SOCKETS - 1; handle #0 is reserved for our internal (DHCP, DNS, etc.) use */
-                for (int i = 1; i < MAX_SIMULTANEOUS_SOCKETS; i++)
+                lock (_handlesInUseBitmaskLockObject)
                 {
-                    if ((_handlesInUseBitmask & ((UInt64)1 << i)) == 0)
+                    if ((_handlesInUseBitmask & (1 << 0)) == 0)
                     {
-                        _handlesInUseBitmask |= ((UInt64)1 << i);
-                        return i;
+                        _handlesInUseBitmask |= (1 << 0);
+                        return 0;
                     }
                 }
 
-                /* if we reach here, there are no free handles. */
-                return -1;
+                /* if we could not immediately retrieve the handle, wait for it to be freed. */
+                Int32 waitTimeout = (Int32)((timeoutInMachineTicks != Int64.MaxValue) ? System.Math.Max((timeoutInMachineTicks - Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks) / System.TimeSpan.TicksPerMillisecond, 0) : System.Threading.Timeout.Infinite);
+                if (!_socketHandleReservedFreed.WaitOne(waitTimeout, false))
+                    break; /* if we could not obtain the WaitHandle before timeout, break free and return "no free handles" */
             }
+
+            /* if we reach here, there are no free handles. */
+            return -1;
+        }
+
+        int GetNextHandle(Int64 timeoutInMachineTicks)
+        {
+            while (true)
+            {
+                lock (_handlesInUseBitmaskLockObject)
+                {
+                    /* check all available handles from 1 to MAX_SIMULTANEOUS_SOCKETS - 1; handle #0 is reserved for our internal (DHCP, DNS, etc.) use */
+                    for (int i = 1; i < MAX_SIMULTANEOUS_SOCKETS; i++)
+                    {
+                        if ((_handlesInUseBitmask & ((UInt64)1 << i)) == 0)
+                        {
+                            _handlesInUseBitmask |= ((UInt64)1 << i);
+                            return i;
+                        }
+                    }
+                }
+
+                /* if we could not immediately retrieve the handle, wait for it to be freed. */
+                Int32 waitTimeout = (Int32)((timeoutInMachineTicks != Int64.MaxValue) ? System.Math.Max((timeoutInMachineTicks - Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks) / System.TimeSpan.TicksPerMillisecond, 0) : System.Threading.Timeout.Infinite);
+                if (!_socketHandleUserFreed.WaitOne(waitTimeout, false))
+                    break; /* if we could not obtain the WaitHandle before timeout, break free and return "no free handles" */
+            }
+
+            /* if we reach here, there are no free handles. */
+            return -1;
         }
 
         void LoopbackInBackgroundThread()
@@ -540,6 +629,12 @@ namespace Netduino.IP
                     }
                 }
                 return;
+            }
+            else if (dstIPAddress == 0xFFFFFFFF)
+            {
+                // direct delivery: this destination address is our broadcast address
+                /* get destinationPhysicalAddress of dstIPAddress */
+                dstPhysicalAddress = _arpResolver.TranslateIPAddressToPhysicalAddress(dstIPAddress, timeoutInMachineTicks);
             }
             else if ((dstIPAddress & _ipv4configSubnetMask) == (_ipv4configIPAddress & _ipv4configSubnetMask))
             {
@@ -783,6 +878,11 @@ namespace Netduino.IP
             }
         }
 
+        internal UInt64 GetPhysicalAddressAsUInt64()
+        {
+            return _ethernetInterface.PhysicalAddressAsUInt64;
+        }
+
         public void Dispose()
         {
             if (_isDisposed) return;
@@ -799,6 +899,8 @@ namespace Netduino.IP
             _ethernetInterface = null;
             _ipv4HeaderBuffer = null;
             _ipv4HeaderBufferLockObject = null;
+
+            _dhcpv4Client.Dispose();
 
             _bufferArray = null;
             _indexArray = null;

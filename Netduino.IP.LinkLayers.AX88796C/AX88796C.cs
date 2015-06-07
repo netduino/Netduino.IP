@@ -409,6 +409,8 @@ namespace Netduino.IP.LinkLayers
                 _lastLinkState = ((Netduino.IP.ILinkLayer)this).GetLinkState();
                 if (lastLinkState != _lastLinkState)
                 {
+                    /* NOTE: through experimentation, we found that the network chip needs about 50ms for the link to be completely ready after the ISR_LINKCHANGE event is received */
+                    System.Threading.Thread.Sleep(50);
                     if (OnLinkStateChanged != null)
                         OnLinkStateChanged(this, _lastLinkState);
                 }

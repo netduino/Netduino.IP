@@ -108,7 +108,7 @@ namespace Netduino.IP
                                 {
                                     if (protocol == 17 /* Udp */)
                                     {
-                                        return _ipv4Layer.CreateSocket(IPv4Layer.ProtocolType.Udp);
+                                        return _ipv4Layer.CreateSocket(IPv4Layer.ProtocolType.Udp, Int64.MaxValue);
                                     }
                                 }
                                 break;
