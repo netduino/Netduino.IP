@@ -107,7 +107,7 @@ namespace Netduino.IP
             _indexArray[0] = 0;
             _countArray[0] = ARP_FRAME_BUFFER_LENGTH;
 
-            // start our "send ARP replies thread"
+            // start our "send ARP replies" thread
             _sendArpGenericInBackgroundQueue = new System.Collections.Queue();
             _sendArpGenericInBackgroundThread = new Thread(SendArpGenericThread);
             _sendArpGenericInBackgroundThread.Start();

@@ -13,6 +13,8 @@ namespace Netduino.IP
 
         DHCPv4Client _dhcpv4Client;
 
+        ICMPv4Handler _icmpv4Handler;
+
         internal const byte MAX_SIMULTANEOUS_SOCKETS = 8; /* must be between 2 and 64; one socket (socket 0) is reserved for background operations such as the DHCP and DNS clients */
         static Netduino.IP.Socket[] _sockets = new Netduino.IP.Socket[MAX_SIMULTANEOUS_SOCKETS];
         UInt64 _handlesInUseBitmask = 0;
@@ -95,6 +97,7 @@ namespace Netduino.IP
 
         public enum ProtocolType : byte
         {
+            ICMPv4 = 1,   // internet control message protocol
             Udp = 17,   // user datagram protocol
         }
 
@@ -151,6 +154,9 @@ namespace Netduino.IP
             // start our "loopback thread"
             _loopbackThread = new Thread(LoopbackInBackgroundThread);
             _loopbackThread.Start();
+
+            // create our ICMPv4 handler instance
+            _icmpv4Handler = new ICMPv4Handler(this);
 
             // create our DHCP client instance
             _dhcpv4Client = new DHCPv4Client(this);
@@ -363,6 +369,11 @@ namespace Netduino.IP
 
             switch (protocol)
             {
+                case ProtocolType.ICMPv4:
+                    {
+                        _icmpv4Handler.OnPacketReceived(sourceIPAddress, buffer, index, count);
+                    }
+                    break;
                 case ProtocolType.Udp: /* UDP */
                     {
                         // find the port # for our packet (looking into the packet) 
@@ -388,7 +399,6 @@ namespace Netduino.IP
                     }
                     break;
                 //case ProtocolType.Tcp:
-                //case ProtocolType.Icmp:
                 //case ProtocolType.Igmp:
                 default:   /* unsupported protocol; drop packet */
                     return;
@@ -901,6 +911,8 @@ namespace Netduino.IP
             _ipv4HeaderBufferLockObject = null;
 
             _dhcpv4Client.Dispose();
+
+            _icmpv4Handler.Dispose();
 
             _bufferArray = null;
             _indexArray = null;
