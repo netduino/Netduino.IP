@@ -510,44 +510,49 @@ namespace Netduino.IP
         //    // instantiate the reserved socket
         //    UdpSocket socket = (UdpSocket)_ipv4Layer.GetSocket(socketHandle);
 
-        //    // bind the reserved socket to the DHCPv4 client port
-        //    socket.Bind(0 /* IP_ADDRESS_ANY */, DHCP_CLIENT_PORT);
+        //    try
+        //    {
+        //        // bind the reserved socket to the DHCPv4 client port
+        //        socket.Bind(0 /* IP_ADDRESS_ANY */, DHCP_CLIENT_PORT);
 
-        //    // generate unique transaction ID
-        //    UInt32 transactionID = GenerateRandomTransactionID();
+        //        // generate unique transaction ID
+        //        UInt32 transactionID = GenerateRandomTransactionID();
 
-        //    // set our clientIdentifier
-        //    byte[] clientIdentifier = new byte[1 + HARDWARE_ADDRESS_SIZE];
-        //    clientIdentifier[0] = HARDWARE_TYPE_ETHERNET;
-        //    clientIdentifier[1] = (byte)((_physicalAddress >> 40) & 0xFF);
-        //    clientIdentifier[2] = (byte)((_physicalAddress >> 32) & 0xFF);
-        //    clientIdentifier[3] = (byte)((_physicalAddress >> 24) & 0xFF);
-        //    clientIdentifier[4] = (byte)((_physicalAddress >> 16) & 0xFF);
-        //    clientIdentifier[5] = (byte)((_physicalAddress >> 8) & 0xFF);
-        //    clientIdentifier[6] = (byte)(_physicalAddress & 0xFF);
+        //        // set our clientIdentifier
+        //        byte[] clientIdentifier = new byte[1 + HARDWARE_ADDRESS_SIZE];
+        //        clientIdentifier[0] = HARDWARE_TYPE_ETHERNET;
+        //        clientIdentifier[1] = (byte)((_physicalAddress >> 40) & 0xFF);
+        //        clientIdentifier[2] = (byte)((_physicalAddress >> 32) & 0xFF);
+        //        clientIdentifier[3] = (byte)((_physicalAddress >> 24) & 0xFF);
+        //        clientIdentifier[4] = (byte)((_physicalAddress >> 16) & 0xFF);
+        //        clientIdentifier[5] = (byte)((_physicalAddress >> 8) & 0xFF);
+        //        clientIdentifier[6] = (byte)(_physicalAddress & 0xFF);
 
-        //    byte[] requestedIPAddress = new byte[4];
-        //    requestedIPAddress[0] = (byte)((ipAddress >> 24) & 0xFF);
-        //    requestedIPAddress[1] = (byte)((ipAddress >> 16) & 0xFF);
-        //    requestedIPAddress[2] = (byte)((ipAddress >> 8) & 0xFF);
-        //    requestedIPAddress[3] = (byte)(ipAddress & 0xFF);
+        //        byte[] requestedIPAddress = new byte[4];
+        //        requestedIPAddress[0] = (byte)((ipAddress >> 24) & 0xFF);
+        //        requestedIPAddress[1] = (byte)((ipAddress >> 16) & 0xFF);
+        //        requestedIPAddress[2] = (byte)((ipAddress >> 8) & 0xFF);
+        //        requestedIPAddress[3] = (byte)(ipAddress & 0xFF);
 
-        //    byte[] serverIdentifier = new byte[4];
-        //    serverIdentifier[0] = (byte)((_dhcpServerAddress >> 24) & 0xFF);
-        //    serverIdentifier[1] = (byte)((_dhcpServerAddress >> 16) & 0xFF);
-        //    serverIdentifier[2] = (byte)((_dhcpServerAddress >> 8) & 0xFF);
-        //    serverIdentifier[3] = (byte)(_dhcpServerAddress & 0xFF);
+        //        byte[] serverIdentifier = new byte[4];
+        //        serverIdentifier[0] = (byte)((_dhcpServerAddress >> 24) & 0xFF);
+        //        serverIdentifier[1] = (byte)((_dhcpServerAddress >> 16) & 0xFF);
+        //        serverIdentifier[2] = (byte)((_dhcpServerAddress >> 8) & 0xFF);
+        //        serverIdentifier[3] = (byte)(_dhcpServerAddress & 0xFF);
 
-        //    DhcpOption[] options = new DhcpOption[3];
-        //    options[0] = new DhcpOption(DhcpOptionCode.ClientIdentifier, clientIdentifier);
-        //    options[1] = new DhcpOption(DhcpOptionCode.ServerIdentifier, serverIdentifier);
-        //    options[2] = new DhcpOption(DhcpOptionCode.RequestedIPAddress, requestedIPAddress);
+        //        DhcpOption[] options = new DhcpOption[3];
+        //        options[0] = new DhcpOption(DhcpOptionCode.ClientIdentifier, clientIdentifier);
+        //        options[1] = new DhcpOption(DhcpOptionCode.ServerIdentifier, serverIdentifier);
+        //        options[2] = new DhcpOption(DhcpOptionCode.RequestedIPAddress, requestedIPAddress);
 
-        //    // send DHCP message
-        //    SendDhcpMessage(socket, DhcpMessageType.DHCPDECLINE, 0xFFFFFFFF, transactionID, 0, 0, _physicalAddress, options, timeoutInMachineTicks);
-
-        //    // close the reserved socket
-        //    _ipv4Layer.CloseSocket(socketHandle);
+        //        // send DHCP message
+        //        SendDhcpMessage(socket, DhcpMessageType.DHCPDECLINE, 0xFFFFFFFF, transactionID, 0, 0, _physicalAddress, options, timeoutInMachineTicks);
+        //    }
+        //    finally
+        //    {
+        //        // close the reserved socket
+        //        _ipv4Layer.CloseSocket(socketHandle);
+        //    }
         //}
 
         //void SendDhcpRelease(Int64 timeoutInMachineTicks)
@@ -563,37 +568,42 @@ namespace Netduino.IP
         //    // instantiate the reserved socket
         //    UdpSocket socket = (UdpSocket)_ipv4Layer.GetSocket(socketHandle);
 
-        //    // bind the reserved socket to the DHCPv4 client port
-        //    socket.Bind(0 /* IP_ADDRESS_ANY */, DHCP_CLIENT_PORT);
+        //    try
+        //    {
+        //        // bind the reserved socket to the DHCPv4 client port
+        //        socket.Bind(0 /* IP_ADDRESS_ANY */, DHCP_CLIENT_PORT);
 
-        //    // generate unique transaction ID
-        //    UInt32 transactionID = GenerateRandomTransactionID();
+        //        // generate unique transaction ID
+        //        UInt32 transactionID = GenerateRandomTransactionID();
 
-        //    // set our clientIdentifier
-        //    byte[] clientIdentifier = new byte[1 + HARDWARE_ADDRESS_SIZE];
-        //    clientIdentifier[0] = HARDWARE_TYPE_ETHERNET;
-        //    clientIdentifier[1] = (byte)((_physicalAddress >> 40) & 0xFF);
-        //    clientIdentifier[2] = (byte)((_physicalAddress >> 32) & 0xFF);
-        //    clientIdentifier[3] = (byte)((_physicalAddress >> 24) & 0xFF);
-        //    clientIdentifier[4] = (byte)((_physicalAddress >> 16) & 0xFF);
-        //    clientIdentifier[5] = (byte)((_physicalAddress >> 8) & 0xFF);
-        //    clientIdentifier[6] = (byte)(_physicalAddress & 0xFF);
+        //        // set our clientIdentifier
+        //        byte[] clientIdentifier = new byte[1 + HARDWARE_ADDRESS_SIZE];
+        //        clientIdentifier[0] = HARDWARE_TYPE_ETHERNET;
+        //        clientIdentifier[1] = (byte)((_physicalAddress >> 40) & 0xFF);
+        //        clientIdentifier[2] = (byte)((_physicalAddress >> 32) & 0xFF);
+        //        clientIdentifier[3] = (byte)((_physicalAddress >> 24) & 0xFF);
+        //        clientIdentifier[4] = (byte)((_physicalAddress >> 16) & 0xFF);
+        //        clientIdentifier[5] = (byte)((_physicalAddress >> 8) & 0xFF);
+        //        clientIdentifier[6] = (byte)(_physicalAddress & 0xFF);
 
-        //    byte[] serverIdentifier = new byte[4];
-        //    serverIdentifier[0] = (byte)((_dhcpServerAddress >> 24) & 0xFF);
-        //    serverIdentifier[1] = (byte)((_dhcpServerAddress >> 16) & 0xFF);
-        //    serverIdentifier[2] = (byte)((_dhcpServerAddress >> 8) & 0xFF);
-        //    serverIdentifier[3] = (byte)(_dhcpServerAddress & 0xFF);
+        //        byte[] serverIdentifier = new byte[4];
+        //        serverIdentifier[0] = (byte)((_dhcpServerAddress >> 24) & 0xFF);
+        //        serverIdentifier[1] = (byte)((_dhcpServerAddress >> 16) & 0xFF);
+        //        serverIdentifier[2] = (byte)((_dhcpServerAddress >> 8) & 0xFF);
+        //        serverIdentifier[3] = (byte)(_dhcpServerAddress & 0xFF);
 
-        //    DhcpOption[] options = new DhcpOption[2];
-        //    options[0] = new DhcpOption(DhcpOptionCode.ClientIdentifier, clientIdentifier);
-        //    options[1] = new DhcpOption(DhcpOptionCode.ServerIdentifier, serverIdentifier);
+        //        DhcpOption[] options = new DhcpOption[2];
+        //        options[0] = new DhcpOption(DhcpOptionCode.ClientIdentifier, clientIdentifier);
+        //        options[1] = new DhcpOption(DhcpOptionCode.ServerIdentifier, serverIdentifier);
 
-        //    // send DHCP message
-        //    SendDhcpMessage(socket, DhcpMessageType.DHCPRELEASE, _dhcpServerAddress, transactionID, 0, _ipConfigIPAddress, _physicalAddress, options, timeoutInMachineTicks);
-
-        //    // close the reserved socket
-        //    _ipv4Layer.CloseSocket(socketHandle);
+        //        // send DHCP message
+        //        SendDhcpMessage(socket, DhcpMessageType.DHCPRELEASE, _dhcpServerAddress, transactionID, 0, _ipConfigIPAddress, _physicalAddress, options, timeoutInMachineTicks);
+        //    }
+        //    finally
+        //    {
+        //        // close the reserved socket
+        //        _ipv4Layer.CloseSocket(socketHandle);
+        //    }
 
         //    // clear our DHCP settings and move to init state
         //    _ipConfigIPAddress = 0;
@@ -613,74 +623,80 @@ namespace Netduino.IP
             int socketHandle = _ipv4Layer.CreateSocket(IPv4Layer.ProtocolType.Udp, timeoutInMachineTicks, true);
             // instantiate the reserved socket
             UdpSocket socket = (UdpSocket)_ipv4Layer.GetSocket(socketHandle);
-            
-            // bind the reserved socket to the DHCPv4 client port
-            socket.Bind(0 /* IP_ADDRESS_ANY */, DHCP_CLIENT_PORT);
 
-            // generate unique transaction ID
-            UInt32 transactionID = GenerateRandomTransactionID();
-
-            // we will retry the DHCP request up to four times.  first delay will be 4 +/-1 seconds; second delay will be 8 +/-1 seconds; third delay will be 16 +/-1 seconds; fourth delay will be 32 +/-1 seconds.
-            // if our current timeoutInMachineTicks is longer than 64 seconds (the maximum wait for DHCP transmission) then reduce it to the maximum
-            timeoutInMachineTicks = (Int64)System.Math.Max(timeoutInMachineTicks, Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (TimeSpan.TicksPerSecond * 64));
-            Int64 startTicks = Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks;
-            secondsElapsed = 0;
-            byte nextRetrySeconds = 4;
-            Int64 nextRetryInMachineTicks = (Int64)(Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (((double)nextRetrySeconds + GenerateRandomPlusMinusOne()) * TimeSpan.TicksPerSecond));
-
-            // set our clientIdentifier
-            byte[] clientIdentifier = new byte[1 + HARDWARE_ADDRESS_SIZE];
-            clientIdentifier[0] = HARDWARE_TYPE_ETHERNET;
-            clientIdentifier[1] = (byte)((_physicalAddress >> 40) & 0xFF);
-            clientIdentifier[2] = (byte)((_physicalAddress >> 32) & 0xFF);
-            clientIdentifier[3] = (byte)((_physicalAddress >> 24) & 0xFF);
-            clientIdentifier[4] = (byte)((_physicalAddress >> 16) & 0xFF);
-            clientIdentifier[5] = (byte)((_physicalAddress >> 8) & 0xFF);
-            clientIdentifier[6] = (byte)(_physicalAddress & 0xFF);
-
-            byte[] parameterRequestList;
-            if (_isDhcpDnsConfigEnabled)
+            System.Collections.ArrayList dhcpOffers;
+            try
             {
-                parameterRequestList = new byte[] { (byte)DhcpOptionCode.SubnetMask, (byte)DhcpOptionCode.Router, (byte)DhcpOptionCode.DomainNameServer };
-            }
-            else
-            {
-                parameterRequestList = new byte[] { (byte)DhcpOptionCode.SubnetMask, (byte)DhcpOptionCode.Router };
-            }
+                // bind the reserved socket to the DHCPv4 client port
+                socket.Bind(0 /* IP_ADDRESS_ANY */, DHCP_CLIENT_PORT);
 
-            byte[] maximumDhcpMessageSize = new byte[2];
-            maximumDhcpMessageSize[0] = (byte)((DHCP_FRAME_BUFFER_LENGTH >> 8) & 0xFF);
-            maximumDhcpMessageSize[1] = (byte)(DHCP_FRAME_BUFFER_LENGTH & 0xFF);
+                // generate unique transaction ID
+                UInt32 transactionID = GenerateRandomTransactionID();
 
-            System.Collections.ArrayList dhcpOffers = new System.Collections.ArrayList();
-            while (timeoutInMachineTicks > Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks)
-            {
-                // assemble options
-                DhcpOption[] options = new DhcpOption[3];
-                options[0] = new DhcpOption(DhcpOptionCode.ClientIdentifier, clientIdentifier);
-                options[1] = new DhcpOption(DhcpOptionCode.ParameterRequestList, parameterRequestList);
-                options[2] = new DhcpOption(DhcpOptionCode.MaximumDhcpMessageSize, maximumDhcpMessageSize);
+                // we will retry the DHCP request up to four times.  first delay will be 4 +/-1 seconds; second delay will be 8 +/-1 seconds; third delay will be 16 +/-1 seconds; fourth delay will be 32 +/-1 seconds.
+                // if our current timeoutInMachineTicks is longer than 64 seconds (the maximum wait for DHCP transmission) then reduce it to the maximum
+                timeoutInMachineTicks = (Int64)System.Math.Max(timeoutInMachineTicks, Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (TimeSpan.TicksPerSecond * 64));
+                Int64 startTicks = Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks;
+                secondsElapsed = 0;
+                byte nextRetrySeconds = 4;
+                Int64 nextRetryInMachineTicks = (Int64)(Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (((double)nextRetrySeconds + GenerateRandomPlusMinusOne()) * TimeSpan.TicksPerSecond));
 
-                // send DHCP message
-                SendDhcpMessage(socket, DhcpMessageType.DHCPDISCOVER, 0xFFFFFFFF, transactionID, secondsElapsed, 0, _physicalAddress, options, timeoutInMachineTicks);
+                // set our clientIdentifier
+                byte[] clientIdentifier = new byte[1 + HARDWARE_ADDRESS_SIZE];
+                clientIdentifier[0] = HARDWARE_TYPE_ETHERNET;
+                clientIdentifier[1] = (byte)((_physicalAddress >> 40) & 0xFF);
+                clientIdentifier[2] = (byte)((_physicalAddress >> 32) & 0xFF);
+                clientIdentifier[3] = (byte)((_physicalAddress >> 24) & 0xFF);
+                clientIdentifier[4] = (byte)((_physicalAddress >> 16) & 0xFF);
+                clientIdentifier[5] = (byte)((_physicalAddress >> 8) & 0xFF);
+                clientIdentifier[6] = (byte)(_physicalAddress & 0xFF);
 
-                // collect offers
-                DhcpOffer dhcpOffer;
-                bool success = RetrieveDhcpOffer(socket, transactionID, _physicalAddress, out dhcpOffer, nextRetryInMachineTicks);
-
-                if (success)
+                byte[] parameterRequestList;
+                if (_isDhcpDnsConfigEnabled)
                 {
-                    dhcpOffers.Add(dhcpOffer);
-                    break;
+                    parameterRequestList = new byte[] { (byte)DhcpOptionCode.SubnetMask, (byte)DhcpOptionCode.Router, (byte)DhcpOptionCode.DomainNameServer };
+                }
+                else
+                {
+                    parameterRequestList = new byte[] { (byte)DhcpOptionCode.SubnetMask, (byte)DhcpOptionCode.Router };
                 }
 
-                secondsElapsed = (UInt16)((Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks - startTicks) / TimeSpan.TicksPerSecond);
-                nextRetrySeconds *= 2;
-                nextRetryInMachineTicks = (Int64)(Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (((double)nextRetrySeconds + GenerateRandomPlusMinusOne()) * TimeSpan.TicksPerSecond));
-            }
+                byte[] maximumDhcpMessageSize = new byte[2];
+                maximumDhcpMessageSize[0] = (byte)((DHCP_FRAME_BUFFER_LENGTH >> 8) & 0xFF);
+                maximumDhcpMessageSize[1] = (byte)(DHCP_FRAME_BUFFER_LENGTH & 0xFF);
 
-            // close the reserved socket
-            _ipv4Layer.CloseSocket(socketHandle);
+                dhcpOffers = new System.Collections.ArrayList();
+                while (timeoutInMachineTicks > Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks)
+                {
+                    // assemble options
+                    DhcpOption[] options = new DhcpOption[3];
+                    options[0] = new DhcpOption(DhcpOptionCode.ClientIdentifier, clientIdentifier);
+                    options[1] = new DhcpOption(DhcpOptionCode.ParameterRequestList, parameterRequestList);
+                    options[2] = new DhcpOption(DhcpOptionCode.MaximumDhcpMessageSize, maximumDhcpMessageSize);
+
+                    // send DHCP message
+                    SendDhcpMessage(socket, DhcpMessageType.DHCPDISCOVER, 0xFFFFFFFF, transactionID, secondsElapsed, 0, _physicalAddress, options, timeoutInMachineTicks);
+
+                    // collect offers
+                    DhcpOffer dhcpOffer;
+                    bool success = RetrieveDhcpOffer(socket, transactionID, _physicalAddress, out dhcpOffer, nextRetryInMachineTicks);
+
+                    if (success)
+                    {
+                        dhcpOffers.Add(dhcpOffer);
+                        break;
+                    }
+
+                    secondsElapsed = (UInt16)((Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks - startTicks) / TimeSpan.TicksPerSecond);
+                    nextRetrySeconds *= 2;
+                    nextRetryInMachineTicks = (Int64)(Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (((double)nextRetrySeconds + GenerateRandomPlusMinusOne()) * TimeSpan.TicksPerSecond));
+                }
+            }
+            finally
+            {
+                // close the reserved socket
+                _ipv4Layer.CloseSocket(socketHandle);
+            }
 
             return (DhcpOffer[])dhcpOffers.ToArray(typeof(DhcpOffer));
         }
@@ -694,83 +710,88 @@ namespace Netduino.IP
             // instantiate the reserved socket
             UdpSocket socket = (UdpSocket)_ipv4Layer.GetSocket(socketHandle);
 
-            // bind the reserved socket to the DHCPv4 client port
-            socket.Bind(0 /* IP_ADDRESS_ANY */, DHCP_CLIENT_PORT);
-
-            // we will retry the DHCP request up to four times.  first delay will be 4 +/-1 seconds; second delay will be 8 +/-1 seconds; third delay will be 16 +/-1 seconds; fourth delay will be 32 +/-1 seconds.
-            // if our current timeoutInMachineTicks is longer than 64 seconds (the maximum wait for DHCP transmission) then reduce it to the maximum
-            timeoutInMachineTicks = (Int64)System.Math.Max(timeoutInMachineTicks, Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (TimeSpan.TicksPerSecond * 64));
-            byte nextRetrySeconds = 4;
-            Int64 nextRetryInMachineTicks = (Int64)(Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (((double)nextRetrySeconds + GenerateRandomPlusMinusOne()) * TimeSpan.TicksPerSecond));
-
-            // set our clientIdentifier
-            byte[] clientIdentifier = new byte[1 + HARDWARE_ADDRESS_SIZE];
-            clientIdentifier[0] = HARDWARE_TYPE_ETHERNET;
-            clientIdentifier[1] = (byte)((_physicalAddress >> 40) & 0xFF);
-            clientIdentifier[2] = (byte)((_physicalAddress >> 32) & 0xFF);
-            clientIdentifier[3] = (byte)((_physicalAddress >> 24) & 0xFF);
-            clientIdentifier[4] = (byte)((_physicalAddress >> 16) & 0xFF);
-            clientIdentifier[5] = (byte)((_physicalAddress >> 8) & 0xFF);
-            clientIdentifier[6] = (byte)(_physicalAddress & 0xFF);
-
-            byte[] parameterRequestList;
-            if (_isDhcpDnsConfigEnabled)
+            try
             {
-                parameterRequestList = new byte[] { (byte)DhcpOptionCode.SubnetMask, (byte)DhcpOptionCode.Router, (byte)DhcpOptionCode.DomainNameServer };
-            }
-            else
-            {
-                parameterRequestList = new byte[] { (byte)DhcpOptionCode.SubnetMask, (byte)DhcpOptionCode.Router };
-            }
+                // bind the reserved socket to the DHCPv4 client port
+                socket.Bind(0 /* IP_ADDRESS_ANY */, DHCP_CLIENT_PORT);
 
-            byte[] maximumDhcpMessageSize = new byte[2];
-            maximumDhcpMessageSize[0] = (byte)((DHCP_FRAME_BUFFER_LENGTH >> 8) & 0xFF);
-            maximumDhcpMessageSize[1] = (byte)(DHCP_FRAME_BUFFER_LENGTH & 0xFF);
+                // we will retry the DHCP request up to four times.  first delay will be 4 +/-1 seconds; second delay will be 8 +/-1 seconds; third delay will be 16 +/-1 seconds; fourth delay will be 32 +/-1 seconds.
+                // if our current timeoutInMachineTicks is longer than 64 seconds (the maximum wait for DHCP transmission) then reduce it to the maximum
+                timeoutInMachineTicks = (Int64)System.Math.Max(timeoutInMachineTicks, Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (TimeSpan.TicksPerSecond * 64));
+                byte nextRetrySeconds = 4;
+                Int64 nextRetryInMachineTicks = (Int64)(Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (((double)nextRetrySeconds + GenerateRandomPlusMinusOne()) * TimeSpan.TicksPerSecond));
 
-            byte[] requestedIPAddress = new byte[4];
-            requestedIPAddress[0] = (byte)((dhcpOffer.IPAddress >> 24) & 0xFF);
-            requestedIPAddress[1] = (byte)((dhcpOffer.IPAddress >> 16) & 0xFF);
-            requestedIPAddress[2] = (byte)((dhcpOffer.IPAddress >> 8) & 0xFF);
-            requestedIPAddress[3] = (byte)(dhcpOffer.IPAddress & 0xFF);
+                // set our clientIdentifier
+                byte[] clientIdentifier = new byte[1 + HARDWARE_ADDRESS_SIZE];
+                clientIdentifier[0] = HARDWARE_TYPE_ETHERNET;
+                clientIdentifier[1] = (byte)((_physicalAddress >> 40) & 0xFF);
+                clientIdentifier[2] = (byte)((_physicalAddress >> 32) & 0xFF);
+                clientIdentifier[3] = (byte)((_physicalAddress >> 24) & 0xFF);
+                clientIdentifier[4] = (byte)((_physicalAddress >> 16) & 0xFF);
+                clientIdentifier[5] = (byte)((_physicalAddress >> 8) & 0xFF);
+                clientIdentifier[6] = (byte)(_physicalAddress & 0xFF);
 
-            byte[] serverIdentifier = new byte[4];
-            serverIdentifier[0] = (byte)((dhcpOffer.ServerIdentifier >> 24) & 0xFF);
-            serverIdentifier[1] = (byte)((dhcpOffer.ServerIdentifier >> 16) & 0xFF);
-            serverIdentifier[2] = (byte)((dhcpOffer.ServerIdentifier >> 8) & 0xFF);
-            serverIdentifier[3] = (byte)(dhcpOffer.ServerIdentifier & 0xFF);
-
-            while (timeoutInMachineTicks > Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks)
-            {
-                // assemble options
-                DhcpOption[] options = new DhcpOption[5];
-                options[0] = new DhcpOption(DhcpOptionCode.ClientIdentifier, clientIdentifier);
-                options[1] = new DhcpOption(DhcpOptionCode.ParameterRequestList, parameterRequestList);
-                options[2] = new DhcpOption(DhcpOptionCode.MaximumDhcpMessageSize, maximumDhcpMessageSize);
-                if (dhcpOffer.IPAddress != 0)
-                    options[3] = new DhcpOption(DhcpOptionCode.RequestedIPAddress, requestedIPAddress);
-                if (dhcpOffer.ServerIdentifier != 0)
-                    options[4] = new DhcpOption(DhcpOptionCode.ServerIdentifier, serverIdentifier);
-
-                // send DHCP message
-                SendDhcpMessage(socket, DhcpMessageType.DHCPREQUEST, dhcpServerIPAddress, dhcpOffer.TransactionID, secondsElapsed, clientIPAddress, _physicalAddress, options, timeoutInMachineTicks);
-
-                // wait for ACK/NAK
-                bool responseIsAck;
-                bool ackNakReceived = RetrieveAckNak(socket, dhcpOffer.TransactionID, _physicalAddress, ref dhcpOffer, out responseIsAck, nextRetryInMachineTicks);
-
-                if (ackNakReceived)
+                byte[] parameterRequestList;
+                if (_isDhcpDnsConfigEnabled)
                 {
-                    success = responseIsAck;
-                    break;
+                    parameterRequestList = new byte[] { (byte)DhcpOptionCode.SubnetMask, (byte)DhcpOptionCode.Router, (byte)DhcpOptionCode.DomainNameServer };
+                }
+                else
+                {
+                    parameterRequestList = new byte[] { (byte)DhcpOptionCode.SubnetMask, (byte)DhcpOptionCode.Router };
                 }
 
-                secondsElapsed += nextRetrySeconds;
-                nextRetrySeconds *= 2;
-                nextRetryInMachineTicks = (Int64)(Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (((double)nextRetrySeconds + GenerateRandomPlusMinusOne()) * TimeSpan.TicksPerSecond));
-            }
+                byte[] maximumDhcpMessageSize = new byte[2];
+                maximumDhcpMessageSize[0] = (byte)((DHCP_FRAME_BUFFER_LENGTH >> 8) & 0xFF);
+                maximumDhcpMessageSize[1] = (byte)(DHCP_FRAME_BUFFER_LENGTH & 0xFF);
 
-            // close the reserved socket
-            _ipv4Layer.CloseSocket(socketHandle);
+                byte[] requestedIPAddress = new byte[4];
+                requestedIPAddress[0] = (byte)((dhcpOffer.IPAddress >> 24) & 0xFF);
+                requestedIPAddress[1] = (byte)((dhcpOffer.IPAddress >> 16) & 0xFF);
+                requestedIPAddress[2] = (byte)((dhcpOffer.IPAddress >> 8) & 0xFF);
+                requestedIPAddress[3] = (byte)(dhcpOffer.IPAddress & 0xFF);
+
+                byte[] serverIdentifier = new byte[4];
+                serverIdentifier[0] = (byte)((dhcpOffer.ServerIdentifier >> 24) & 0xFF);
+                serverIdentifier[1] = (byte)((dhcpOffer.ServerIdentifier >> 16) & 0xFF);
+                serverIdentifier[2] = (byte)((dhcpOffer.ServerIdentifier >> 8) & 0xFF);
+                serverIdentifier[3] = (byte)(dhcpOffer.ServerIdentifier & 0xFF);
+
+                while (timeoutInMachineTicks > Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks)
+                {
+                    // assemble options
+                    DhcpOption[] options = new DhcpOption[5];
+                    options[0] = new DhcpOption(DhcpOptionCode.ClientIdentifier, clientIdentifier);
+                    options[1] = new DhcpOption(DhcpOptionCode.ParameterRequestList, parameterRequestList);
+                    options[2] = new DhcpOption(DhcpOptionCode.MaximumDhcpMessageSize, maximumDhcpMessageSize);
+                    if (dhcpOffer.IPAddress != 0)
+                        options[3] = new DhcpOption(DhcpOptionCode.RequestedIPAddress, requestedIPAddress);
+                    if (dhcpOffer.ServerIdentifier != 0)
+                        options[4] = new DhcpOption(DhcpOptionCode.ServerIdentifier, serverIdentifier);
+
+                    // send DHCP message
+                    SendDhcpMessage(socket, DhcpMessageType.DHCPREQUEST, dhcpServerIPAddress, dhcpOffer.TransactionID, secondsElapsed, clientIPAddress, _physicalAddress, options, timeoutInMachineTicks);
+
+                    // wait for ACK/NAK
+                    bool responseIsAck;
+                    bool ackNakReceived = RetrieveAckNak(socket, dhcpOffer.TransactionID, _physicalAddress, ref dhcpOffer, out responseIsAck, nextRetryInMachineTicks);
+
+                    if (ackNakReceived)
+                    {
+                        success = responseIsAck;
+                        break;
+                    }
+
+                    secondsElapsed += nextRetrySeconds;
+                    nextRetrySeconds *= 2;
+                    nextRetryInMachineTicks = (Int64)(Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (((double)nextRetrySeconds + GenerateRandomPlusMinusOne()) * TimeSpan.TicksPerSecond));
+                }
+            }
+            finally
+            {
+                // close the reserved socket
+                _ipv4Layer.CloseSocket(socketHandle);
+            }
 
             return success;
         }
@@ -784,51 +805,56 @@ namespace Netduino.IP
         //    // instantiate the reserved socket
         //    UdpSocket socket = (UdpSocket)_ipv4Layer.GetSocket(socketHandle);
 
-        //    // bind the reserved socket to the DHCPv4 client port
-        //    socket.Bind(0 /* IP_ADDRESS_ANY */, DHCP_CLIENT_PORT);
-
-        //    // we will retry the DHCP request up to four times.  first delay will be 4 +/-1 seconds; second delay will be 8 +/-1 seconds; third delay will be 16 +/-1 seconds; fourth delay will be 32 +/-1 seconds.
-        //    // if our current timeoutInMachineTicks is longer than 64 seconds (the maximum wait for DHCP transmission) then reduce it to the maximum
-        //    timeoutInMachineTicks = (Int64)System.Math.Max(timeoutInMachineTicks, Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (TimeSpan.TicksPerSecond * 64));
-        //    byte nextRetrySeconds = 4;
-        //    Int64 nextRetryInMachineTicks = (Int64)(Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (((double)nextRetrySeconds + GenerateRandomPlusMinusOne()) * TimeSpan.TicksPerSecond));
-
-        //    // set our clientIdentifier
-        //    byte[] clientIdentifier = new byte[1 + HARDWARE_ADDRESS_SIZE];
-        //    clientIdentifier[0] = HARDWARE_TYPE_ETHERNET;
-        //    clientIdentifier[1] = (byte)((_physicalAddress >> 40) & 0xFF);
-        //    clientIdentifier[2] = (byte)((_physicalAddress >> 32) & 0xFF);
-        //    clientIdentifier[3] = (byte)((_physicalAddress >> 24) & 0xFF);
-        //    clientIdentifier[4] = (byte)((_physicalAddress >> 16) & 0xFF);
-        //    clientIdentifier[5] = (byte)((_physicalAddress >> 8) & 0xFF);
-        //    clientIdentifier[6] = (byte)(_physicalAddress & 0xFF);
-
-        //    while (timeoutInMachineTicks > Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks)
+        //    try
         //    {
-        //        // assemble options
-        //        DhcpOption[] options = new DhcpOption[1];
-        //        options[0] = new DhcpOption(DhcpOptionCode.ClientIdentifier, clientIdentifier);
+        //        // bind the reserved socket to the DHCPv4 client port
+        //        socket.Bind(0 /* IP_ADDRESS_ANY */, DHCP_CLIENT_PORT);
 
-        //        // send DHCP message
-        //        SendDhcpMessage(socket, DhcpMessageType.DHCPINFORM, 0xFFFFFFFF, dhcpOffer.TransactionID, secondsElapsed, _ipConfigIPAddress, _physicalAddress, options, timeoutInMachineTicks);
+        //        // we will retry the DHCP request up to four times.  first delay will be 4 +/-1 seconds; second delay will be 8 +/-1 seconds; third delay will be 16 +/-1 seconds; fourth delay will be 32 +/-1 seconds.
+        //        // if our current timeoutInMachineTicks is longer than 64 seconds (the maximum wait for DHCP transmission) then reduce it to the maximum
+        //        timeoutInMachineTicks = (Int64)System.Math.Max(timeoutInMachineTicks, Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (TimeSpan.TicksPerSecond * 64));
+        //        byte nextRetrySeconds = 4;
+        //        Int64 nextRetryInMachineTicks = (Int64)(Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (((double)nextRetrySeconds + GenerateRandomPlusMinusOne()) * TimeSpan.TicksPerSecond));
 
-        //        // wait for ACK/NAK
-        //        bool responseIsAck;
-        //        bool ackNakReceived = RetrieveAckNak(socket, dhcpOffer.TransactionID, _physicalAddress, ref dhcpOffer, out responseIsAck, nextRetryInMachineTicks);
+        //        // set our clientIdentifier
+        //        byte[] clientIdentifier = new byte[1 + HARDWARE_ADDRESS_SIZE];
+        //        clientIdentifier[0] = HARDWARE_TYPE_ETHERNET;
+        //        clientIdentifier[1] = (byte)((_physicalAddress >> 40) & 0xFF);
+        //        clientIdentifier[2] = (byte)((_physicalAddress >> 32) & 0xFF);
+        //        clientIdentifier[3] = (byte)((_physicalAddress >> 24) & 0xFF);
+        //        clientIdentifier[4] = (byte)((_physicalAddress >> 16) & 0xFF);
+        //        clientIdentifier[5] = (byte)((_physicalAddress >> 8) & 0xFF);
+        //        clientIdentifier[6] = (byte)(_physicalAddress & 0xFF);
 
-        //        if (ackNakReceived)
+        //        while (timeoutInMachineTicks > Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks)
         //        {
-        //            success = responseIsAck;
-        //            break;
+        //            // assemble options
+        //            DhcpOption[] options = new DhcpOption[1];
+        //            options[0] = new DhcpOption(DhcpOptionCode.ClientIdentifier, clientIdentifier);
+
+        //            // send DHCP message
+        //            SendDhcpMessage(socket, DhcpMessageType.DHCPINFORM, 0xFFFFFFFF, dhcpOffer.TransactionID, secondsElapsed, _ipConfigIPAddress, _physicalAddress, options, timeoutInMachineTicks);
+
+        //            // wait for ACK/NAK
+        //            bool responseIsAck;
+        //            bool ackNakReceived = RetrieveAckNak(socket, dhcpOffer.TransactionID, _physicalAddress, ref dhcpOffer, out responseIsAck, nextRetryInMachineTicks);
+
+        //            if (ackNakReceived)
+        //            {
+        //                success = responseIsAck;
+        //                break;
+        //            }
+
+        //            secondsElapsed += nextRetrySeconds;
+        //            nextRetrySeconds *= 2;
+        //            nextRetryInMachineTicks = (Int64)(Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (((double)nextRetrySeconds + GenerateRandomPlusMinusOne()) * TimeSpan.TicksPerSecond));
         //        }
-
-        //        secondsElapsed += nextRetrySeconds;
-        //        nextRetrySeconds *= 2;
-        //        nextRetryInMachineTicks = (Int64)(Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (((double)nextRetrySeconds + GenerateRandomPlusMinusOne()) * TimeSpan.TicksPerSecond));
         //    }
-
-        //    // close the reserved socket
-        //    _ipv4Layer.CloseSocket(socketHandle);
+        //    finally
+        //    {
+        //        // close the reserved socket
+        //        _ipv4Layer.CloseSocket(socketHandle);
+        //    }
 
         //    return success;
         //}

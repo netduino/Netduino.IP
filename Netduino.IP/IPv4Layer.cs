@@ -15,6 +15,8 @@ namespace Netduino.IP
 
         ICMPv4Handler _icmpv4Handler;
 
+        DnsResolver _dnsResolver;
+
         internal const byte MAX_SIMULTANEOUS_SOCKETS = 8; /* must be between 2 and 64; one socket (socket 0) is reserved for background operations such as the DHCP and DNS clients */
         static Netduino.IP.Socket[] _sockets = new Netduino.IP.Socket[MAX_SIMULTANEOUS_SOCKETS];
         UInt64 _handlesInUseBitmask = 0;
@@ -29,7 +31,7 @@ namespace Netduino.IP
         UInt32 _ipv4configIPAddress = 0x00000000;     /* IP: 0.0.0.0 = IPAddress.Any */
         UInt32 _ipv4configSubnetMask = 0x00000000;  /* SM: 0.0.0.0 = IPAddress.Any */
         UInt32 _ipv4configGatewayAddress = 0x00000000;     /* GW: 0.0.0.0 = IPAddress.Any */
-        UInt32[] _ipv4configDnsAddresses = new UInt32[0];
+        UInt32[] _ipv4configDnsServerAddresses = new UInt32[0];
 
         const UInt32 LOOPBACK_IP_ADDRESS = 0x7F000001;
         const UInt32 LOOPBACK_SUBNET_MASK = 0xFF000000;
@@ -132,10 +134,10 @@ namespace Netduino.IP
             if (!dhcpDnsConfigEnabled)
             {
                 string[] dnsAddressesString = (string[])networkInterface.GetType().GetMethod("get_DnsAddresses").Invoke(networkInterface, new object[] { });
-                _ipv4configDnsAddresses = new UInt32[dnsAddressesString.Length];
-                for (int iDnsAddress = 0; iDnsAddress < _ipv4configDnsAddresses.Length; iDnsAddress++)
+                _ipv4configDnsServerAddresses = new UInt32[dnsAddressesString.Length];
+                for (int iDnsAddress = 0; iDnsAddress < _ipv4configDnsServerAddresses.Length; iDnsAddress++)
                 {
-                    _ipv4configDnsAddresses[iDnsAddress] = ConvertIPAddressStringToUInt32BE(dnsAddressesString[iDnsAddress]);
+                    _ipv4configDnsServerAddresses[iDnsAddress] = ConvertIPAddressStringToUInt32BE(dnsAddressesString[iDnsAddress]);
                 }
             }
 
@@ -158,6 +160,9 @@ namespace Netduino.IP
             // create our ICMPv4 handler instance
             _icmpv4Handler = new ICMPv4Handler(this);
 
+            // create our DNS resolver instance
+            _dnsResolver = new DnsResolver(this);
+
             // create our DHCP client instance
             _dhcpv4Client = new DHCPv4Client(this);
             _dhcpv4Client.IpConfigChanged += _dhcpv4Client_IpConfigChanged;
@@ -176,8 +181,8 @@ namespace Netduino.IP
 
         void _dhcpv4Client_DnsConfigChanged(object sender, uint[] dnsAddresses)
         {
-            _ipv4configDnsAddresses = new UInt32[System.Math.Min(dnsAddresses.Length, 2)];
-            Array.Copy(dnsAddresses, _ipv4configDnsAddresses, _ipv4configDnsAddresses.Length);
+            _ipv4configDnsServerAddresses = new UInt32[System.Math.Min(dnsAddresses.Length, 2)];
+            Array.Copy(dnsAddresses, _ipv4configDnsServerAddresses, _ipv4configDnsServerAddresses.Length);
         }
 
         void _dhcpv4Client_IpConfigChanged(object sender, uint ipAddress, uint gatewayAddress, uint subnetMask)
@@ -888,9 +893,29 @@ namespace Netduino.IP
             }
         }
 
+        internal UInt32[] DnsServerAddresses
+        {
+            get
+            {
+                return _ipv4configDnsServerAddresses;
+            }
+        }
+
         internal UInt64 GetPhysicalAddressAsUInt64()
         {
             return _ethernetInterface.PhysicalAddressAsUInt64;
+        }
+
+        internal UInt32[] ResolveHostNameToIpAddresses(string name, out string canonicalName)
+        {
+            /* special case: if the passed-in name is empty, return our local IP address */
+            if (name == string.Empty)
+            {
+                canonicalName = string.Empty;
+                return new UInt32[] { _ipv4configIPAddress };
+            }
+
+            return _dnsResolver.ResolveHostNameToIpAddresses(name, out canonicalName, Int64.MaxValue);
         }
 
         public void Dispose()
@@ -913,6 +938,8 @@ namespace Netduino.IP
             _dhcpv4Client.Dispose();
 
             _icmpv4Handler.Dispose();
+
+            _dnsResolver.Dispose();
 
             _bufferArray = null;
             _indexArray = null;

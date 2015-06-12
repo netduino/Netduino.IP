@@ -57,6 +57,39 @@ namespace Netduino.IP
             }
         }
 
+        public static object[] getaddrinfo_reflection(string name)
+        {
+            string canonicalName;
+            byte[][] addresses;
+            getaddrinfo(name, out canonicalName, out addresses);
+            return new object[] { canonicalName, addresses };
+        }
+
+        public static void getaddrinfo(string name, out string canonicalName, out byte[][] addresses)
+        {
+            if (!_isInitialized) Initialize();
+
+            UInt32[] ipAddresses = _ipv4Layer.ResolveHostNameToIpAddresses(name, out canonicalName);
+
+            addresses = new byte[ipAddresses.Length][];
+            for (int iAddress = 0; iAddress < ipAddresses.Length; iAddress++)
+            {
+                addresses[iAddress] = new byte[8];
+                if (SystemInfo.IsBigEndian)
+                {
+                    addresses[iAddress][1] = 0x02; /* AddressFamily.InterNetwork */
+                }
+                else
+                {
+                    addresses[iAddress][0] = 0x02; /* AddressFamily.InterNetwork */
+                }
+                addresses[iAddress][4] = (byte)((ipAddresses[iAddress] >> 24) & 0xFF);
+                addresses[iAddress][5] = (byte)((ipAddresses[iAddress] >> 16) & 0xFF);
+                addresses[iAddress][6] = (byte)((ipAddresses[iAddress] >> 8) & 0xFF);
+                addresses[iAddress][7] = (byte)(ipAddresses[iAddress] & 0xFF);
+            }
+        }
+
         public static void bind(int handle, byte[] address)
         {
             if (!_isInitialized) Initialize();

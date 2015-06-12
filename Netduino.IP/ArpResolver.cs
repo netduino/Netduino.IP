@@ -88,7 +88,7 @@ namespace Netduino.IP
             // save a reference to our ethernet interface; we will use this to send ARP fraems
             _ethernetInterface = ethernetInterface;
 
-            // create our ARP Cache
+            // create our ARP cache
             _arpCache = new System.Collections.Hashtable();
 
             /* write fixed ARP frame parameters (which do not change) to our ARP frame buffer */
@@ -139,6 +139,8 @@ namespace Netduino.IP
                 _currentArpRequestAnsweredEvent = null;
             }
 
+            if (_arpCache != null)
+                _arpCache.Clear();
             _cleanupArpCacheTimer.Dispose();
 
             _ethernetInterface = null;

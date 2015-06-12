@@ -71,7 +71,11 @@ namespace Microsoft.SPOT.Net
         //No standard non-blocking api
         public static void getaddrinfo(string name, out string canonicalName, out byte[][] addresses)
         {
-			throw new NotImplementedException();
+            //return Netduino.IP.SocketsInterface.getaddrinfo(name, out canonicalName, out addresses);
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("getaddrinfo_reflection", BindingFlags.Public | BindingFlags.Static);
+            object[] retObjArray = (object[])methodInfo.Invoke(null, new object[] { name });
+            canonicalName = (string)retObjArray[0];
+            addresses = (byte[][])retObjArray[1];
         }
 
         public static void shutdown(int handle, int how, out int err)

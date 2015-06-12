@@ -32,6 +32,7 @@
     <Compile Include="Application.cs" />
     <Compile Include="ArpResolver.cs" />
     <Compile Include="DHCPv4Client.cs" />
+    <Compile Include="DnsResolver.cs" />
     <Compile Include="EthernetInterface.cs" />
     <Compile Include="ICMPv4Handler.cs" />
     <Compile Include="IPv4Layer.cs" />
