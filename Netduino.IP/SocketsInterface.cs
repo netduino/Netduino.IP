@@ -5,6 +5,8 @@ namespace Netduino.IP
 {
     static class SocketsInterface
     {
+        public const int FIONREAD = 0x4004667F;
+
         static object _initializeMethodSyncObject = new object();
         static bool _isInitialized = false;
 
@@ -90,6 +92,18 @@ namespace Netduino.IP
             }
         }
 
+        public static int accept(int handle)
+        {
+            if (!_isInitialized) Initialize();
+
+            Socket socket = _ipv4Layer.GetSocket(handle).Accept();
+
+            if (socket != null)
+                return socket.Handle;
+            else
+                return -1;
+        }
+
         public static void bind(int handle, byte[] address)
         {
             if (!_isInitialized) Initialize();
@@ -137,6 +151,14 @@ namespace Netduino.IP
                     {
                         switch (type)
                         {
+                            case 1: /* Stream */
+                                {
+                                    if (protocol == 6 /* Tcp */)
+                                    {
+                                        return _ipv4Layer.CreateSocket(IPv4Layer.ProtocolType.Tcp, Int64.MaxValue);
+                                    }
+                                }
+                                break;
                             case 2: /* Dgram */
                                 {
                                     if (protocol == 17 /* Udp */)
@@ -152,6 +174,211 @@ namespace Netduino.IP
 
             /* if we could not create a socket, return -1. */
             return -1;
+        }
+
+        public static void listen(int handle, int backlog)
+        {
+            if (!_isInitialized) Initialize();
+
+            _ipv4Layer.GetSocket(handle).Listen(backlog);
+        }
+
+        public static object[] getpeername_reflection(int handle) 
+        { 
+            byte[] address; 
+            getpeername(handle, out address); 
+            return new object[] { address }; 
+        } 
+ 
+        public static void getpeername(int handle, out byte[] address) 
+        { 
+            if (!_isInitialized) Initialize();
+
+            Socket socket = _ipv4Layer.GetSocket(handle);
+            UInt32 ipAddress = socket.DestinationIPAddress;
+            UInt16 ipPort = socket.DestinationIPPort;
+ 
+            address = new byte[8]; 
+            if (SystemInfo.IsBigEndian) 
+            { 
+                address[0] = 0x00;  /* InterNetwork = 0x0002 */ 
+                address[1] = 0x02;  /* InterNetwork = 0x0002 */ 
+            } 
+            else 
+            { 
+                address[0] = 0x02;  /* InterNetwork = 0x0002 */ 
+                address[1] = 0x00;  /* InterNetwork = 0x0002 */ 
+            } 
+            address[2] = (byte)((ipPort >> 8) & 0xFF); 
+            address[3] = (byte)(ipPort & 0xFF); 
+            address[4] = (byte)((ipAddress >> 24) & 0xFF); 
+            address[5] = (byte)((ipAddress >> 16) & 0xFF); 
+            address[6] = (byte)((ipAddress >> 8) & 0xFF); 
+            address[7] = (byte)(ipAddress & 0xFF); 
+        } 
+ 
+        public static object[] getsockname_reflection(int handle) 
+        { 
+            byte[] address; 
+            getsockname(handle, out address); 
+            return new object[] { address }; 
+        } 
+ 
+        public static void getsockname(int handle, out byte[] address) 
+        { 
+            if (!_isInitialized) Initialize(); 
+ 
+            Socket socket = _ipv4Layer.GetSocket(handle);
+            UInt32 ipAddress = socket.SourceIPAddress;
+            UInt16 ipPort = socket.SourceIPPort;
+ 
+            address = new byte[8]; 
+            address[2] = (byte)((ipPort >> 8) & 0xFF); 
+            address[3] = (byte)(ipPort & 0xFF); 
+            address[4] = (byte)((ipAddress >> 24) & 0xFF); 
+            address[5] = (byte)((ipAddress >> 16) & 0xFF); 
+            address[6] = (byte)((ipAddress >> 8) & 0xFF); 
+            address[7] = (byte)(ipAddress & 0xFF); 
+
+            throw new NotImplementedException(); 
+        }
+
+        public static void getsockopt(int handle, int level, int optname, byte[] optval)
+        {
+            if (!_isInitialized) Initialize();
+
+            switch (level)
+            {
+                case 0xffff: /* SocketOptionLevel.Socket */
+                    {
+                        /* filter for Netduino.IP-supported optnames */
+                        switch (optname)
+                        {
+                            case 0x001008: /* SocketOptionName.Type */
+                                {
+                                    Socket socket = _ipv4Layer.GetSocket(handle);
+                                    Int32 socketType;
+                                    if (socket.GetType() == typeof(TcpSocket))
+                                    {
+                                        socketType = 1; /* Stream */
+                                    }
+                                    else if (socket.GetType() == typeof(UdpSocket))
+                                    {
+                                        socketType = 2; /* Dgram */
+                                    }
+                                    else
+                                    {
+                                        throw new ArgumentException();
+                                    }
+                                    optval[0] = (byte)((socketType) & 0xFF);
+                                    optval[1] = (byte)(((socketType) >> 8) & 0xFF);
+                                    optval[2] = (byte)(((socketType) >> 16) & 0xFF);
+                                    optval[3] = (byte)(((socketType) >> 24) & 0xFF);
+                                }
+                                break;
+                            default:
+                                throw new NotSupportedException();
+                        }
+                    }
+                    break;
+                default:
+                    throw new NotSupportedException();
+            }
+        }
+
+        public static void setsockopt(int handle, int level, int optname, byte[] optval)
+        {
+            if (!_isInitialized) Initialize();
+
+            switch (level)
+            {
+                case 0xffff: /* SocketOptionLevel.Socket */
+                    {
+                        /* filter for CC3100-specific optnames */
+                        switch (optname)
+                        {
+                            case 0x1006: /* ReceiveTimeout */
+                                {
+                                    /* TODO: implement receive timeout, on a per-socket basis */
+                                }
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                    break;
+                case 0x0000: /* IP */
+                    {
+                        switch (optname)
+                        {
+                            case 10: /* MulticastTimeToLive */
+                                {
+                                    /* TODO: potentially add optional IGMP support in the future. */
+                                }
+                                break;
+                            case 12: /* AddMembership */
+                                {
+                                    /* TODO: potentially add optional IGMP support in the future. */
+                                }
+                                break;
+                            case 13: /* DropMembership */
+                                {
+                                    /* TODO: potentially add optional IGMP support in the future. */
+                                }
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                    break;
+                case 0x0006: /* TCP */
+                    {
+                        switch (optname)
+                        {
+                            case 1: /* NoDelay */
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                    break;
+                case 0x0011: /* UDP */
+                    break;
+                default:
+                    break;
+            }
+        }
+
+
+        public static bool poll(int handle, int mode, int microSeconds)
+        {
+            if (!_isInitialized) Initialize();
+
+            return _ipv4Layer.GetSocket(handle).Poll(mode, microSeconds);
+        }
+
+        public static object[] ioctl_reflection(int handle, uint cmd, uint arg)
+        {
+            ioctl(handle, cmd, ref arg);
+            return new object[] { arg };
+        }
+
+        public static void ioctl(int handle, uint cmd, ref uint arg)
+        {
+            if (!_isInitialized) Initialize();
+
+            switch (cmd)
+            {
+                case FIONREAD:
+                    {
+                        arg = (UInt32)_ipv4Layer.GetSocket(handle).GetBytesToRead();
+                    }
+                    break;
+                default:
+                    {
+                        throw new NotImplementedException();
+                    }
+            }
         }
 
         public static int recv(int handle, byte[] buf, int offset, int count, int flags, int timeout_ms)

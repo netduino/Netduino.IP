@@ -4,22 +4,12 @@ namespace Netduino.IP
 {
     internal class Socket : IDisposable 
     {
-        protected IPv4Layer _ipv4Layer;
         protected int _handle;
 
         protected bool _isDisposed = false;
 
         ////const int MAX_TX_DATAGRAM_LENGTH = 1500; /* 1500 bytes */
         ////byte[] _txDatagramBuffer;
-
-        protected byte[][] _checksumBufferArray = new byte[3][];
-        protected int[] _checksumOffsetArray = new int[3];
-        protected int[] _checksumCountArray = new int[3];
-        /* NOTE: _checksum... objects are sync-locked by the inherited class if they are used in multiple functions */
-
-        protected byte[][] _bufferArray = new byte[2][];
-        protected int[] _indexArray = new int[2];
-        protected int[] _countArray = new int[2];
 
         protected const UInt32 IP_ADDRESS_ANY = 0x0000000000000000;
         protected const UInt16 IP_PORT_ANY = 0x0000;
@@ -36,13 +26,11 @@ namespace Netduino.IP
 
         protected IPv4Layer.ProtocolType _protocolType;
 
-        public Socket(IPv4Layer ipv4Layer, Int32 handle)
+        public Socket(Int32 handle)
         {
         //    //// create a buffer for TX datagrams; our stack will reuse this same buffer as we push data towards the MAC layer.
         //    //_txDatagramBuffer = new byte[MAX_TX_DATAGRAM_LENGTH];
 
-            // save a reference to our IPv4Layer; we'll use this to send IPv4 frames
-            _ipv4Layer = ipv4Layer;
             _handle = handle;
         }
 
@@ -50,16 +38,7 @@ namespace Netduino.IP
         {
             _isDisposed = true;
 
-            _ipv4Layer = null;
             _handle = -1;
-
-            _checksumBufferArray = null;
-            _checksumOffsetArray = null;
-            _checksumCountArray = null;
-
-            _bufferArray = null;
-            _indexArray = null;
-            _countArray = null;
 
             _srcIPAddress = IP_ADDRESS_ANY;
             _srcIPPort = IP_PORT_ANY;
@@ -73,7 +52,18 @@ namespace Netduino.IP
             }
         }
 
+        public virtual Socket Accept()
+        {
+            // virtual method not actually implemented in base Socket class
+            return null;
+        }
+
         public virtual void Bind(UInt32 ipAddress, UInt16 ipPort)
+        {
+            // virtual method not actually implemented in base Socket class
+        }
+
+        public virtual void Close()
         {
             // virtual method not actually implemented in base Socket class
         }
@@ -81,6 +71,11 @@ namespace Netduino.IP
         public virtual void Connect(UInt32 ipAddress, UInt16 ipPort)
         {
             // virtual method not actually implemented in base Socket class
+        }
+
+        public virtual void Listen(int backlog)
+        {
+            // virtual method not actually impelmented in base Socket class
         }
 
         public virtual bool Poll(Int32 mode, Int32 microSeconds)

@@ -256,7 +256,7 @@ namespace Netduino.IP
         void _ipv4Layer_LinkStateChanged(object sender, bool state)
         {
             _linkState = state;
-            // let our dHCP state machine know that the link state has changed
+            // let our DHCP state machine know that the link state has changed
             _dhcpStateMachineEvent.Set();
         }
 
@@ -271,7 +271,7 @@ namespace Netduino.IP
                 if (_isDhcpDnsConfigEnabled != value)
                 { 
                     _isDhcpDnsConfigEnabled = value;
-                    // let our dHCP state machine know that the dhcp config setting has changed
+                    // let our DHCP state machine know that the dhcp config setting has changed
                     _dhcpStateMachineEvent.Set();
                 }
             }
@@ -288,7 +288,7 @@ namespace Netduino.IP
                 if (_isDhcpIpConfigEnabled != value)
                 {
                     _isDhcpIpConfigEnabled = value;
-                    // let our dHCP state machine know that the dhcp ip setting has changed
+                    // let our DHCP state machine know that the dhcp ip setting has changed
                     _dhcpStateMachineEvent.Set();
                 }
             }
@@ -490,7 +490,7 @@ namespace Netduino.IP
 
         UInt32 GenerateRandomTransactionID()
         {
-            /* NOTE: since our hardware likely does not include an RTC, this iiirandom generator will likely generate the same random number(s) after every boot */
+            /* NOTE: since our hardware likely does not include an RTC, this random generator will likely generate the same random number(s) after every boot */
             return (UInt32)(_randomGenerator.Next() + _randomGenerator.Next());
         }
 

@@ -5,6 +5,8 @@ namespace Netduino.IP
 {
     internal class UdpSocket : Socket  
     {
+        IPv4Layer _ipv4Layer;
+
         // fixed buffer for UDP header
         const int UDP_HEADER_LENGTH = 8;
         const int UDP_PSEUDO_HEADER_LENGTH = 12;
@@ -15,6 +17,15 @@ namespace Netduino.IP
         object _udpPseudoHeaderBufferLockObject = new object();
 
         bool _sourceIpAddressAndPortAssigned = false;
+
+        protected byte[][] _checksumBufferArray = new byte[3][];
+        protected int[] _checksumOffsetArray = new int[3];
+        protected int[] _checksumCountArray = new int[3];
+        /* NOTE: _checksum... objects are sync-locked by the inherited class if they are used in multiple functions */
+
+        protected byte[][] _bufferArray = new byte[2][];
+        protected int[] _indexArray = new int[2];
+        protected int[] _countArray = new int[2];
 
         /* TODO: consider using a pool of global ReceivedPacketBuffers instead of creating a single buffer per socket */
         internal class ReceivedPacketBuffer
@@ -30,8 +41,11 @@ namespace Netduino.IP
         AutoResetEvent _receivedPacketBufferFilledEvent = new AutoResetEvent(false);
 
         public UdpSocket(IPv4Layer ipv4Layer, int handle)
-            : base(ipv4Layer, handle)
+            : base(handle)
         {
+            // save a reference to our IPv4Layer; we'll use this to send IPv4 frames
+            _ipv4Layer = ipv4Layer;
+
             base._protocolType = IPv4Layer.ProtocolType.Udp;
 
             InitializeReceivedPacketBuffer(_receivedPacketBuffer);
@@ -41,11 +55,21 @@ namespace Netduino.IP
         {
             base.Dispose();
 
+            _ipv4Layer = null;
+
             _udpHeaderBuffer = null;
             _udpHeaderBufferLockObject = null;
 
             _udpPseudoHeaderBuffer = null;
             _udpPseudoHeaderBufferLockObject = null;
+
+            _checksumBufferArray = null;
+            _checksumOffsetArray = null;
+            _checksumCountArray = null;
+
+            _bufferArray = null;
+            _indexArray = null;
+            _countArray = null;
         }
 
         public override void Bind(UInt32 ipAddress, UInt16 ipPort)

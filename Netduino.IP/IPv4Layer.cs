@@ -17,8 +17,10 @@ namespace Netduino.IP
 
         DnsResolver _dnsResolver;
 
+        TcpHandler _tcpHandler;
+
         internal const byte MAX_SIMULTANEOUS_SOCKETS = 8; /* must be between 2 and 64; one socket (socket 0) is reserved for background operations such as the DHCP and DNS clients */
-        static Netduino.IP.Socket[] _sockets = new Netduino.IP.Socket[MAX_SIMULTANEOUS_SOCKETS];
+        static internal Netduino.IP.Socket[] _sockets = new Netduino.IP.Socket[MAX_SIMULTANEOUS_SOCKETS];
         UInt64 _handlesInUseBitmask = 0;
         object _handlesInUseBitmaskLockObject = new object();
         AutoResetEvent _socketHandleReservedFreed = new AutoResetEvent(false);
@@ -99,8 +101,9 @@ namespace Netduino.IP
 
         public enum ProtocolType : byte
         {
-            ICMPv4 = 1,   // internet control message protocol
-            Udp = 17,   // user datagram protocol
+            ICMPv4 = 1,  // internet control message protocol
+            Tcp    = 6,  // transmission control protocol
+            Udp    = 17, // user datagram protocol
         }
 
         public IPv4Layer(EthernetInterface ethernetInterface)
@@ -116,6 +119,9 @@ namespace Netduino.IP
             bool dhcpIpConfigEnabled = (bool)networkInterface.GetType().GetMethod("get_IsDhcpEnabled").Invoke(networkInterface, new object[] { });
             /* NOTE: IsDynamicDnsEnabled is improperly implemented in NETMF; it should implement dynamic DNS--but instead it returns whether or not DNS addresses are assigned through DHCP */
             bool dhcpDnsConfigEnabled = (bool)networkInterface.GetType().GetMethod("get_IsDynamicDnsEnabled").Invoke(networkInterface, new object[] { });
+
+            // randomize our ephemeral port assignment counter (so that we don't use the same port #s repeatedly after reboots)
+            _nextEphemeralPort = (UInt16)(FIRST_EPHEMERAL_PORT + ((new Random()).NextDouble() * (UInt16.MaxValue - FIRST_EPHEMERAL_PORT - 1)));
 
             // configure our ARP resolver's default IP address settings
             if (dhcpIpConfigEnabled)
@@ -174,6 +180,9 @@ namespace Netduino.IP
                 _dhcpv4Client.IsDhcpIpConfigEnabled = dhcpIpConfigEnabled;
                 _dhcpv4Client.IsDhcpDnsConfigEnabled = dhcpDnsConfigEnabled;
             }
+
+            // create our TCP handler instance
+            _tcpHandler = new TcpHandler(this);
 
             // manually fire our LinkStateChanged event to set the initial state of our link.
             _ethernetInterface_LinkStateChanged(_ethernetInterface, _ethernetInterface.GetLinkState());
@@ -381,7 +390,7 @@ namespace Netduino.IP
                     break;
                 case ProtocolType.Udp: /* UDP */
                     {
-                        // find the port # for our packet (looking into the packet) 
+                        // find the destination port # for our packet (looking into the packet) 
                         UInt16 destinationIPPort = (UInt16)((((UInt16)buffer[index + 2]) << 8) + buffer[index + 3]);
 
                         for (int i = 0; i < MAX_SIMULTANEOUS_SOCKETS; i++)
@@ -403,7 +412,11 @@ namespace Netduino.IP
                         }
                     }
                     break;
-                //case ProtocolType.Tcp:
+                case ProtocolType.Tcp:
+                    {
+                        _tcpHandler.OnPacketReceived(sourceIPAddress, destinationIPAddress, buffer, index, count);
+                    }
+                    break;
                 //case ProtocolType.Igmp:
                 default:   /* unsupported protocol; drop packet */
                     return;
@@ -474,6 +487,11 @@ namespace Netduino.IP
         {
             if (_sockets[handle] != null)
             {
+                try
+                {
+                _sockets[handle].Close();
+                }
+                catch { }
                 _sockets[handle].Dispose();
                 _sockets[handle] = null;
             }
@@ -498,6 +516,21 @@ namespace Netduino.IP
         {
             switch (protocolType)
             {
+                case ProtocolType.Tcp:
+                    {
+                        int handle = reservedSocket ? GetReservedHandle(timeoutInMachineTicks) : GetNextHandle(timeoutInMachineTicks);
+                        if (handle != -1)
+                        {
+                            _sockets[handle] = new TcpSocket(_tcpHandler, handle);
+                            return handle;
+                        }
+                        else
+                        {
+                            // no handle available
+                            //throw new System.Net.Sockets.SocketException(System.Net.Sockets.SocketError.TooManyOpenSockets);
+                            return -1;
+                        }
+                    }
                 case ProtocolType.Udp:
                     {
                         int handle = reservedSocket ? GetReservedHandle(timeoutInMachineTicks) : GetNextHandle(timeoutInMachineTicks);
@@ -936,10 +969,16 @@ namespace Netduino.IP
             _ipv4HeaderBufferLockObject = null;
 
             _dhcpv4Client.Dispose();
+            _dhcpv4Client = null;
 
             _icmpv4Handler.Dispose();
+            _icmpv4Handler = null;
 
             _dnsResolver.Dispose();
+            _dnsResolver = null;
+
+            _tcpHandler.Dispose();
+            _tcpHandler = null;
 
             _bufferArray = null;
             _indexArray = null;

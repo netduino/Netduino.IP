@@ -40,6 +40,8 @@
     <Compile Include="ILinkLayer.cs" />
     <Compile Include="Socket.cs" />
     <Compile Include="SocketsInterface.cs" />
+    <Compile Include="TcpHandler.cs" />
+    <Compile Include="TcpSocket.cs" />
     <Compile Include="UdpSocket.cs" />
     <Compile Include="Utility.cs" />
   </ItemGroup>

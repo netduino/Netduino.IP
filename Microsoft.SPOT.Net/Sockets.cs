@@ -60,12 +60,16 @@ namespace Microsoft.SPOT.Net
 
         public static void listen(int handle, int backlog)
         {
-			throw new NotImplementedException();
+            //return Netduino.IP.SocketsInterface.listen(handle, backlog);
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("listen", BindingFlags.Public | BindingFlags.Static);
+            methodInfo.Invoke(null, new object[] { handle, backlog });
         }
 
         public static int accept(int handle)
         {
-			throw new NotImplementedException();
+            //return Netduino.IP.SocketsInterface.accept(handle);
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("accept", BindingFlags.Public | BindingFlags.Static);
+            return (int)(methodInfo.Invoke(null, new object[] { handle }));
         }
 
         //No standard non-blocking api
@@ -102,32 +106,47 @@ namespace Microsoft.SPOT.Net
 
         public static void getpeername(int handle, out byte[] address)
         {
-			throw new NotImplementedException();
+            //Netduino.IP.SocketsInterface.getpeername(handle, out address); 
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("getpeername_reflection", BindingFlags.Public | BindingFlags.Static); 
+            object[] retObjArray = (object[])methodInfo.Invoke(null, new object[] { handle }); 
+            address = (byte[])retObjArray[0]; 
         }
 
         public static void getsockname(int handle, out byte[] address)
         {
-			throw new NotImplementedException();
+            //Netduino.IP.SocketsInterface.getpeername(handle, out address); 
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("getsockname_reflection", BindingFlags.Public | BindingFlags.Static);
+            object[] retObjArray = (object[])methodInfo.Invoke(null, new object[] { handle });
+            address = (byte[])retObjArray[0];
         }
 
         public static void getsockopt(int handle, int level, int optname, byte[] optval)
         {
-			throw new NotImplementedException();
+            //Netduino.IP.SocketsInterface.getsockopt(handle, level, optname, optval); 
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("getsockopt", BindingFlags.Public | BindingFlags.Static); 
+            methodInfo.Invoke(null, new object[] { handle, level, optname, optval }); 
         }
 
         public static void setsockopt(int handle, int level, int optname, byte[] optval)
         {
-			throw new NotImplementedException();
+            //Netduino.IP.SocketsInterface.setsockopt(handle, level, optname, optval); 
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("setsockopt", BindingFlags.Public | BindingFlags.Static);
+            methodInfo.Invoke(null, new object[] { handle, level, optname, optval });
         }
 
         public static bool poll(int handle, int mode, int microSeconds)
         {
-			throw new NotImplementedException();
+            //Netduino.IP.SocketsInterface.poll(handle, mode, microSeconds);
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("poll", BindingFlags.Public | BindingFlags.Static);
+            return (bool)(methodInfo.Invoke(null, new object[] { handle, mode, microSeconds }));
         }
 
         public static void ioctl(int handle, uint cmd, ref uint arg)
         {
-			throw new NotImplementedException();
+            //Netduino.IP.SocketsInterface.ioctl(handle, cmd, ref arg);
+            MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("ioctl_reflection", BindingFlags.Public | BindingFlags.Static);
+            object[] retObjArray = (object[])methodInfo.Invoke(null, new object[] { handle, cmd, arg });
+            arg = (uint)retObjArray[0];
         }
     }
 }
