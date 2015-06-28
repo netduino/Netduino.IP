@@ -254,8 +254,8 @@ namespace Netduino.IP
                     if (_dnsCache.Count >= DNS_CACHE_MAXIMUM_ENTRIES)
                     {
                         Int64 oldestLastUsedTicks = Int64.MaxValue;
-                        UInt32 oldestKey = 0;
-                        foreach (UInt32 key in _dnsCache.Keys)
+                        string oldestKey = string.Empty;
+                        foreach (string key in _dnsCache.Keys)
                         {
                             if (((DnsCacheEntry)_dnsCache[key]).LastUsedTicks < oldestLastUsedTicks)
                             {
@@ -572,7 +572,7 @@ namespace Netduino.IP
                 keyWasRemoved = false; // default to "no keys removed"
                 lock (_dnsCacheLock)
                 {
-                    foreach (UInt32 key in _dnsCache.Keys)
+                    foreach (string key in _dnsCache.Keys)
                     {
                         if (((DnsCacheEntry)_dnsCache[key]).ExpirationTicks < nowTicks)
                         {
