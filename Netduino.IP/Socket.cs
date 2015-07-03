@@ -20,9 +20,13 @@ namespace Netduino.IP
         protected UInt32 _destIPAddress = IP_ADDRESS_ANY;
         protected UInt16 _destIPPort = IP_PORT_ANY;
 
-        protected const int SELECT_MODE_READ = 0;
-        protected const int SELECT_MODE_WRITE = 1;
-        protected const int SELECT_MODE_ERROR = 2;
+        protected const Int32 SELECT_MODE_READ = 0;
+        protected const Int32 SELECT_MODE_WRITE = 1;
+        protected const Int32 SELECT_MODE_ERROR = 2;
+
+        /* send and receive timeout values in milliseconds; default is 0 (infinite) */
+        protected int _transmitTimeoutInMilliseconds = 0;
+        protected int _receiveTimeoutInMilliseconds = 0;
 
         protected IPv4Layer.ProtocolType _protocolType;
 
@@ -82,6 +86,78 @@ namespace Netduino.IP
         {
             // virtual method not actually implemented in base Socket class
             return false;
+        }
+
+        internal virtual UInt16 ReceiveBufferSize
+        {
+            get 
+            {   
+                return 0;
+            }
+            set
+            {
+            }
+        }
+
+        internal virtual UInt16 TransmitBufferSize
+        {
+            get
+            {
+                return 0;
+            }
+            set
+            {
+            }
+        }
+
+        public virtual Int32 ReceiveTimeoutInMilliseconds
+        {
+            get
+            {
+                return _receiveTimeoutInMilliseconds;
+            }
+            set
+            {
+                if (value == 0 || value == -1)
+                {
+                    _receiveTimeoutInMilliseconds = 0;
+                }
+                else if (value < -1)
+                {
+                    throw new ArgumentOutOfRangeException();
+                }
+                else
+                {
+                    _receiveTimeoutInMilliseconds = value;
+                }
+            }
+        }
+
+        public virtual Int32 TransmitTimeoutInMilliseconds
+        {
+            get
+            {
+                return _transmitTimeoutInMilliseconds;
+            }
+            set
+            {
+                if (value == 0 || value == -1)
+                {
+                    _transmitTimeoutInMilliseconds = 0;
+                }
+                else if (value < -1)
+                {
+                    throw new ArgumentOutOfRangeException();
+                }
+                else if (value >= 500)
+                {
+                    _transmitTimeoutInMilliseconds = value;
+                }
+                else // if (value > 0 && value < 500)
+                {
+                    _transmitTimeoutInMilliseconds = 500;
+                }
+            }
         }
 
         public virtual Int32 Send(byte[] buffer, Int32 offset, Int32 count, Int32 flags, Int64 timeoutInMachineTicks)

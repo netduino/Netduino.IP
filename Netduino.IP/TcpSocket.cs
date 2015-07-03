@@ -15,15 +15,18 @@ namespace Netduino.IP
         UInt32 _receiveWindowLeftEdge = 0; /* this tracks the next sequence # we expect to receive from the destination host */
         UInt32 _receiveWindowRightEdge = 0; /* this tracks the last sequence # we expect to receive from the destnation host (plus 1) */
         //UInt32 _receiveWindowScale = 0; /* 2^0; this is our default scale.  we bit-shift the window size to the left (i.e. _receiveWindowSize = windowSize * 2^_receiveWindowScale) */
-        const UInt32 _receiveBufferSize = 1461; /* the actual size of our internal receive buffer; it should match the _receiveWindowSize */
+        UInt32 _receiveBufferSize = 1461; /* the actual size of our internal receive buffer; it should match the _receiveWindowSize */
+        /* NOTE: in IPv6 or hybrid IPv4+IPv6 mode, we should set our receive window maximum segment size to 1440 (since IPv6 requires 20 extra bytes for its IPv6 header; otherwise use 1460 for IPv4-only.
+         *       in any cirumstance, 536 bytes is the minimum segment data size requried by the TCP protocol */
+        const UInt32 _receiveWindowMaximumSegmentSize = 1440 /* min: 536 */; /* this is the maximum segment size (for our receive processing) which we have advertised to the destination host */
+        //const Int32 RECEIVE_BUFFER_MIN_SIZE = 536; /* 536 bytes is the minimum receive buffer size allowed by TCP spec */
 
         UInt32 _transmitWindowLeftEdge = 0; /* this equals the first byte in our outgoing sliding window */
         UInt32 _transmitWindowRightEdge = 0; /* this equals the last byte (plus 1) in our outgoing sliding window */
-        const UInt32 _transmitWindowMaximumSegmentSize = 536; /* this is the maximum segment size sent by the destination host during connection establishment */
-        UInt32 _transmitWindowMaxSize = 536; /* this tracks the allowable transmit window size; we use this to know the maximum number of bytes we can currently transmit to the destination host */
+        UInt32 _transmitWindowMaximumSegmentSize = 536; /* this is the maximum segment size sent by the destination host during connection establishment; default is 536 bytes (the minimum in TCP spec) */
         UInt32 _transmitWindowSentButNotAcknowledgedMarker = 0; /* this equals the last byte (plus 1) which has been sent but not yet acknowledged */
         //UInt32 _transmitWindowScale = 0; /* 2^0; this is our default scale.  we bit-shift the window size to the left (i.e. _transmitWindowSize = windowSize * 2^_transmitWindowScale) */
-        const UInt32 _transmitBufferSize = 1461; /* the actual size of our internal transmit buffer */
+        UInt32 _transmitBufferSize = 1461; /* the actual size of our internal transmit buffer */
 
         /* NOTES on receive buffer:
          * 1. the buffer wraps around; data does not necessarily start at position 0.
@@ -193,7 +196,7 @@ namespace Netduino.IP
         internal void JoinIncomingConnection(UInt32 localIPAddress, UInt16 localIPPort, UInt32 destinationIPAddress, UInt16 destinationIPPort, UInt32 sequenceNumber, UInt16 windowSize)
         {
             if (_sourceIpAddressAndPortAssigned)
-                throw new Exception(); /* is this correct; should we throw an exception if we already have an IP address/port assigned? */
+                throw Utility.NewSocketException(SocketError.SocketError); /* is this correct; should we throw an exception if we already have an IP address/port assigned? */
 
             _sourceIpAddressAndPortAssigned = true;
 
@@ -241,8 +244,11 @@ namespace Netduino.IP
 
         public override void Bind(UInt32 ipAddress, UInt16 ipPort)
         {
+            if (_connectionState != 0)
+                throw Utility.NewSocketException(SocketError.IsConnected);
+
             if (_sourceIpAddressAndPortAssigned)
-                throw new Exception(); /* is this correct; should we throw an exception if we already have an IP address/port assigned? */
+                throw Utility.NewSocketException(SocketError.SocketError); /* is this correct; should we throw an exception if we already have an IP address/port assigned? */
 
             _sourceIpAddressAndPortAssigned = true;
 
@@ -255,7 +261,7 @@ namespace Netduino.IP
 
             // verify that this source IP address is correct
             if (ipAddress != _tcpHandler.IPv4Layer.IPAddress)
-                throw new Exception(); // throw a better exception (address invalid)
+                throw Utility.NewSocketException(SocketError.AddressNotAvailable); /* address invalid */
 
             /* ensure that no other TcpSockets are bound to this address/port */
             for (int iSocketHandle = 0; iSocketHandle < IPv4Layer.MAX_SIMULTANEOUS_SOCKETS; iSocketHandle++)
@@ -266,7 +272,7 @@ namespace Netduino.IP
                     socket.SourceIPAddress == ipAddress &&
                     socket.SourceIPPort == ipPort)
                 {
-                    throw new Exception(); /* find a better exception for "cannot bind to already-bound port" */
+                    throw Utility.NewSocketException(SocketError.AddressAlreadyInUse); /* find a better exception for "cannot bind to already-bound port" */
                 }
             }
 
@@ -279,7 +285,7 @@ namespace Netduino.IP
             /* TODO: if the client wishes to reuse a socket object to connect a different server than before while TIME_WAIT's 2MSL have not yet expired,
              *       we may want to support that scenario here--possibly by caching the TIME_WAIT state and endpoint pairs in our TcpHandler so it can handle the TIME_WAIT state. */
             if (_tcpStateMachine_CurrentState != TcpStateMachineState.CLOSED)
-                throw new Exception(); /* TODO: find better exception for "already connected" */
+                throw Utility.NewSocketException(SocketError.IsConnected);
 
             if (!_sourceIpAddressAndPortAssigned)
                 Bind(IP_ADDRESS_ANY, IP_PORT_ANY);
@@ -302,7 +308,7 @@ namespace Netduino.IP
                 }
                 else
                 {
-                    throw new Exception(); /* TODO: what is the best exception for "connection attempt timed out"? */
+                    throw Utility.NewSocketException(SocketError.TimedOut);
                 }
             }
             catch
@@ -337,10 +343,10 @@ namespace Netduino.IP
         public override void Listen(int backlog)
         {
             if (_tcpStateMachine_CurrentState != TcpStateMachineState.CLOSED)
-                throw new Exception(); /* TODO: find better "cannot put socket in listening mode when socket is not closed" exception */
+                throw Utility.NewSocketException(SocketError.IsConnected); 
 
             if (!_sourceIpAddressAndPortAssigned)
-                throw new Exception(); /* TODO: find better exception for "must be bound to address/port before .listen() can be called" */
+                throw Utility.NewSocketException(SocketError.SocketError); /* "must be bound to address/port before .listen() can be called" */
 
             // move to the listening  state
             _tcpStateMachine_CurrentState = TcpStateMachineState.LISTEN;
@@ -447,8 +453,15 @@ namespace Netduino.IP
                     _tcpStateMachine_ActionRequiredEvent.Set();
 
                     // if we could nto send all of our data to the buffer, block until there is more space available.
+                    Int32 timeoutMilliseconds = (timeoutInMachineTicks == Int64.MaxValue ? Timeout.Infinite : (Int32)((timeoutInMachineTicks - Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks) / TimeSpan.TicksPerMillisecond));
                     if (bytesSent < count)
-                        _transmitBufferSpaceFreedEvent.WaitOne();
+                    {
+                        bool spaceFreed = _transmitBufferSpaceFreedEvent.WaitOne(timeoutMilliseconds, false);
+
+                        /* if we ran out of time, abort. */
+                        if (!spaceFreed)
+                            throw Utility.NewSocketException(SocketError.SocketError); /* NOTE: should we throw a TimeoutException? */
+                    }
                 }
             }
 
@@ -470,7 +483,10 @@ namespace Netduino.IP
                         // if there is no data available and our connection is not being shut down, wait until data is available
                         _receiveBufferSpaceFilledEvent.Reset(); // ensure that the "buffer filled" event is not triggered before checking our buffer fill state (so that waiting on the event doesn't falsely trigger
                         if (GetReceiveBufferBytesFilled() == 0)
-                            _receiveBufferSpaceFilledEvent.WaitOne();
+                        {
+                            Int32 timeoutMilliseconds = (timeoutInMachineTicks == Int64.MaxValue ? Timeout.Infinite : (Int32)((timeoutInMachineTicks - Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks) / TimeSpan.TicksPerMillisecond));
+                            _receiveBufferSpaceFilledEvent.WaitOne(timeoutMilliseconds, false);
+                        }
                     }
                     break;
                 case TcpStateMachineState.CLOSING:
@@ -481,12 +497,21 @@ namespace Netduino.IP
             }
 
             bool receiveWindowWasFull;
+            bool receiveWindowRemainingWasLessThanButIsNowGreaterThanSegmentSize = false;
 
             Int32 bytesRead = 0;
             lock (_receiveBufferLockObject)
             {
-                Int32 bytesToRead = System.Math.Min(GetReceiveBufferBytesFilled(), count);
-                receiveWindowWasFull = (bytesToRead == _receiveBuffer.Length - 1);
+                UInt16 receiveBufferBytesFilled = GetReceiveBufferBytesFilled();
+                Int32 bytesToRead = System.Math.Min(receiveBufferBytesFilled, count);
+                Int32 receiveBufferSize = _receiveBuffer.Length - 1; /* NOTE: one byte of teh actual buffer is unused, so the usable size is one less than the length */
+                Int32 receiveBufferBytesRemaining = receiveBufferSize - receiveBufferBytesFilled;
+
+                receiveWindowWasFull = (bytesToRead == receiveBufferSize);
+                receiveWindowRemainingWasLessThanButIsNowGreaterThanSegmentSize = (
+                    (receiveBufferBytesRemaining < _receiveWindowMaximumSegmentSize) &&
+                    ((receiveBufferBytesRemaining + bytesToRead) >= _receiveWindowMaximumSegmentSize)
+                    );
 
                 Int32 bytesToReadBeforeWrap = (Int32)System.Math.Min(bytesToRead, _receiveBuffer.Length - _receiveBufferFirstBytePos);
                 Array.Copy(_receiveBuffer, (Int32)_receiveBufferFirstBytePos, buffer, offset, bytesToReadBeforeWrap);
@@ -503,6 +528,13 @@ namespace Netduino.IP
 
             /* if window size was zero, but is no longer zero, then send a window update to the destination host (via an ACK) */
             if (receiveWindowWasFull)
+            {
+                _tcpStateMachine_SendAckRequired = true;
+                _tcpStateMachine_ActionRequiredEvent.Set();
+            }
+
+            /* if we window size was smaller than our minimum segemnt size, and is now larger than our minimum segment size, then send a window update to the destination host (via an ACK) */
+            if (receiveWindowRemainingWasLessThanButIsNowGreaterThanSegmentSize)
             {
                 _tcpStateMachine_SendAckRequired = true;
                 _tcpStateMachine_ActionRequiredEvent.Set();
@@ -561,6 +593,55 @@ namespace Netduino.IP
                 ((UInt16)buffer[index + 15]));
 
             /* TODO: process header options */
+            if (headerLength > TcpHandler.TCP_HEADER_MIN_LENGTH)
+            {
+                bool endOfListProcessed = false;
+                byte optionLength = 0;
+
+                int headerBufferPos = TcpHandler.TCP_HEADER_MIN_LENGTH;
+                while (!endOfListProcessed && (headerBufferPos < headerLength))
+                {
+                    byte optionKind;
+                    optionKind = buffer[headerBufferPos];
+
+                    if (optionKind == 0 /* EOL = end of option list */)
+                    {
+                        endOfListProcessed = true;
+                        optionLength = 1;
+                    }
+                    else if (optionKind == 1 /* NOP = no operation; used for padding */)
+                    {
+                        optionLength = 1;
+                    }
+                    else
+                    {
+                        if (headerBufferPos < headerLength - 1)
+                            optionLength = (byte)(buffer[headerBufferPos + 1]);
+                        else
+                            optionLength = 1; /* backup in case other option length/list is corrupted */
+
+                        /* interpret known TCP options */
+                        switch (buffer[headerBufferPos])
+                        {
+                            case 2: /* MSS = Maximum Segment Size */
+                                {
+                                    if (optionLength == 4)
+                                    {
+                                        _transmitWindowMaximumSegmentSize = (UInt16)(
+                                            (((UInt16)buffer[headerBufferPos + 2]) << 8) +
+                                            buffer[headerBufferPos + 3]
+                                            );
+                                    }
+                                }
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+
+                    headerBufferPos += optionLength;
+                }
+            }
 
             /* recalculate transmit window size */
             /* NOTE: in edge cases, the transmit window could actually shrink.  if that happens, we need to pull in our "sent but not acknowledged" marker as well */
@@ -568,7 +649,7 @@ namespace Netduino.IP
                 _transmitWindowSentButNotAcknowledgedMarker = _transmitWindowLeftEdge + windowSize;
             _transmitWindowRightEdge = _transmitWindowLeftEdge + windowSize;
 
-            /* if some of our data has been acknowledged, process the ACK and move the transmit window forward */
+            /* if we receive a reset frame, close down our socket */
             if (flagRst && (acknowledgmentNumber >= _transmitWindowLeftEdge) && (acknowledgmentNumber <= (_transmitWindowRightEdge + 1)))
             {
                 // close down our socket
@@ -576,6 +657,7 @@ namespace Netduino.IP
                 if (_tcpStateMachine_CurrentState != TcpStateMachineState.CLOSING)
                 {
                     /* TODO: clear our transmit buffers, notify user, etc. */
+                    if (_receiveBufferSpaceFilledEvent != null) _receiveBufferSpaceFilledEvent.Set();
                 }
                 if (_outgoingConnectionClosedEvent != null) _outgoingConnectionClosedEvent.Set();
                 _tcpStateMachine_CurrentState = TcpStateMachineState.CLOSED;
@@ -785,7 +867,7 @@ namespace Netduino.IP
                             UInt32 initialSequenceNumber = (UInt32)(_randomGenerator.Next() + _randomGenerator.Next()); /* initial sequence number */
                             _transmitWindowLeftEdge = initialSequenceNumber;
                             _transmitWindowSentButNotAcknowledgedMarker = _transmitWindowLeftEdge + 1;
-                            _transmitWindowRightEdge = _transmitWindowLeftEdge + _transmitWindowMaxSize;
+                            _transmitWindowRightEdge = _transmitWindowLeftEdge + _transmitWindowMaximumSegmentSize;
 
                             Int64 currentTimeInMachineTicks = Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks;
                             // move the state machine forward to "SYN_SENT" so that it can respond to an incoming SYN + ACK message
@@ -802,8 +884,10 @@ namespace Netduino.IP
                             }
 
                             _tcpHandler.SendTcpSegment(_srcIPAddress, _destIPAddress, _srcIPPort, _destIPPort, _transmitWindowLeftEdge, _receiveWindowLeftEdge, GetReceiveBufferBytesFree(), 
-                                ((_connectionState & ConnectionStateFlags.ConnectedFromDestination) > 0), 
-                                false, false, true, false, new byte[] { }, 0, 0, Int64.MaxValue); /* TODO: use timeout on sending segment */
+                                ((_connectionState & ConnectionStateFlags.ConnectedFromDestination) > 0),
+                                false, false, true, false,
+                                new TcpHandler.TcpOption[] { new TcpHandler.TcpOption(2 /* Maximum Segment Size */, new byte[] { (byte)((_receiveWindowMaximumSegmentSize >> 8) & 0xFF), (byte)(_receiveWindowMaximumSegmentSize & 0xFF) }) }, 
+                                new byte[] { }, 0, 0, Int64.MaxValue); /* TODO: use timeout on sending segment */
                             _tcpStateMachine_SendAckRequired = false;
                         }
                         break;
@@ -831,7 +915,9 @@ namespace Netduino.IP
                                         _currentOutgoingTransmission.CurrentRetryTimeoutInMachineTicks = currentTimeInMachineTicks + (_currentOutgoingTransmission.CurrentRetryTimeoutInMilliseconds * TimeSpan.TicksPerMillisecond);
                                         _tcpHandler.SendTcpSegment(_srcIPAddress, _destIPAddress, _srcIPPort, _destIPPort, _transmitWindowLeftEdge, _receiveWindowLeftEdge, GetReceiveBufferBytesFree(),
                                             ((_connectionState & ConnectionStateFlags.ConnectedFromDestination) > 0), 
-                                            false, false, true, false, new byte[] { }, 0, 0, Int64.MaxValue); /* TODO: enable timeout */
+                                            false, false, true, false,
+                                            new TcpHandler.TcpOption[] { new TcpHandler.TcpOption(2 /* Maximum Segment Size */, new byte[] { (byte)((_receiveWindowMaximumSegmentSize >> 8) & 0xFF), (byte)(_receiveWindowMaximumSegmentSize & 0xFF) }) },
+                                            new byte[] { }, 0, 0, Int64.MaxValue); /* TODO: enable timeout */
                                     }
                                 }
 
@@ -870,7 +956,7 @@ namespace Netduino.IP
                                     _currentOutgoingTransmission.TransmissionAttemptsCounter = 1;
                                     _currentOutgoingTransmission.CurrentRetryTimeoutInMilliseconds = _tcpStateMachine_CalculatedRetryTimeoutInMilliseconds;
                                     _currentOutgoingTransmission.CurrentRetryTimeoutInMachineTicks = currentTimeInMachineTicks + (_currentOutgoingTransmission.CurrentRetryTimeoutInMilliseconds * TimeSpan.TicksPerMillisecond);
-                                    _currentOutgoingTransmission.MaximumTimeoutInMachineTicks = currentTimeInMachineTicks + (DATA_MAX_RETRY_TIMEOUT_IN_MS * TimeSpan.TicksPerMillisecond);
+                                    _currentOutgoingTransmission.MaximumTimeoutInMachineTicks = currentTimeInMachineTicks + (((_transmitTimeoutInMilliseconds > 0) ? _transmitTimeoutInMilliseconds : DATA_MAX_RETRY_TIMEOUT_IN_MS) * TimeSpan.TicksPerMillisecond);
                                 }
 
                                 // calculate the number of bytes to send
@@ -878,7 +964,7 @@ namespace Netduino.IP
                                 Int32 totalBytesToSend = System.Math.Min(transmitWindowWidth, transmitBufferFilledLength);
 
                                 /* NOTE: this code is copy-and-paste synchronized with the "send data" code in the "re-attempt" section below */
-                                // max 536 bytes per segment (_transmitWindowMaximumSegmentSize)
+                                // max bytes per segment (_transmitWindowMaximumSegmentSize)
                                 UInt32 absoluteWindowOffset = _transmitWindowLeftEdge;
                                 Int32 absoluteBufferOffset = (Int32)_transmitBufferFirstBytePos;
                                 Int32 relativeOffset = 0;
@@ -888,7 +974,7 @@ namespace Netduino.IP
                                     Int32 currentBytesToSend = (Int32)System.Math.Min(bytesToSendBeforeWrap, _transmitWindowMaximumSegmentSize);
                                     _tcpHandler.SendTcpSegment(_srcIPAddress, _destIPAddress, _srcIPPort, _destIPPort, 
                                         (UInt32)absoluteWindowOffset, _receiveWindowLeftEdge, GetReceiveBufferBytesFree(), true, 
-                                        (totalBytesToSend - relativeOffset == currentBytesToSend), false, false, false, 
+                                        (totalBytesToSend - relativeOffset == currentBytesToSend), false, false, false, null, 
                                         _transmitBuffer, absoluteBufferOffset, currentBytesToSend, Int64.MaxValue); /* TODO: use timeout on sending segment */
 
                                     relativeOffset += currentBytesToSend;
@@ -911,8 +997,8 @@ namespace Netduino.IP
                                         /* abort transmission attempt and close socket */
                                         _connectionState = ConnectionStateFlags.None;
                                         _tcpStateMachine_CurrentState = TcpStateMachineState.CLOSED;
-                                        if (_outgoingConnectionClosedEvent != null)
-                                            _outgoingConnectionClosedEvent.Set();
+                                        if (_receiveBufferSpaceFilledEvent != null) _receiveBufferSpaceFilledEvent.Set(); 
+                                        if (_outgoingConnectionClosedEvent != null) _outgoingConnectionClosedEvent.Set();
                                     }
                                     else
                                     {
@@ -926,7 +1012,7 @@ namespace Netduino.IP
                                         Int32 totalBytesToSend = System.Math.Min(transmitWindowUsedWidth, transmitBufferFilledLength);
 
                                         /* NOTE: this code is copy-and-paste synchronized with the "send data" code in the "initial attempt" section above */
-                                        // max 536 bytes per segment (_transmitWindowMaximumSegmentSize)
+                                        // max bytes per segment (_transmitWindowMaximumSegmentSize)
                                         UInt32 absoluteWindowOffset = _transmitWindowLeftEdge;
                                         Int32 absoluteBufferOffset = (Int32)_transmitBufferFirstBytePos;
                                         Int32 relativeOffset = 0;
@@ -936,7 +1022,7 @@ namespace Netduino.IP
                                             Int32 currentBytesToSend = (Int32)System.Math.Min(bytesToSendBeforeWrap, _transmitWindowMaximumSegmentSize);
                                             _tcpHandler.SendTcpSegment(_srcIPAddress, _destIPAddress, _srcIPPort, _destIPPort,
                                                 (UInt32)absoluteWindowOffset, _receiveWindowLeftEdge, GetReceiveBufferBytesFree(), true,
-                                                (totalBytesToSend - relativeOffset == currentBytesToSend), false, false, false,
+                                                (totalBytesToSend - relativeOffset == currentBytesToSend), false, false, false, null,
                                                 _transmitBuffer, absoluteBufferOffset, currentBytesToSend, Int64.MaxValue); /* TODO: use timeout on sending segment */
 
                                             relativeOffset += currentBytesToSend;
@@ -958,8 +1044,8 @@ namespace Netduino.IP
                                 ((_connectionState & ConnectionStateFlags.ConnectedFromDestination) == 0))
                             {
                                 /* TODO: we should move to 2MSL state (blocking this endpoint pair from being used for 2 * MSL) */
-                                if (_outgoingConnectionClosedEvent != null)
-                                    _outgoingConnectionClosedEvent.Set();
+                                if (_receiveBufferSpaceFilledEvent != null) _receiveBufferSpaceFilledEvent.Set();
+                                if (_outgoingConnectionClosedEvent != null) _outgoingConnectionClosedEvent.Set();
                                 break;
                             }
 
@@ -987,7 +1073,7 @@ namespace Netduino.IP
                                     }
 
                                     _tcpHandler.SendTcpSegment(_srcIPAddress, _destIPAddress, _srcIPPort, _destIPPort, _transmitWindowLeftEdge, _receiveWindowLeftEdge, GetReceiveBufferBytesFree(),
-                                        true, false, false, false, true, new byte[] { }, 0, 0, Int64.MaxValue); /* TODO: use timeout on sending segment */
+                                        true, false, false, false, true, null, new byte[] { }, 0, 0, Int64.MaxValue); /* TODO: use timeout on sending segment */
                                     _tcpStateMachine_SendAckRequired = false;
                                 }
                                 else
@@ -1001,8 +1087,8 @@ namespace Netduino.IP
                                             /* abort close attempt */
                                             _connectionState = ConnectionStateFlags.None;
                                             _tcpStateMachine_CurrentState = TcpStateMachineState.CLOSED;
-                                            if (_outgoingConnectionClosedEvent != null)
-                                                _outgoingConnectionClosedEvent.Set();
+                                            if (_receiveBufferSpaceFilledEvent != null) _receiveBufferSpaceFilledEvent.Set();
+                                            if (_outgoingConnectionClosedEvent != null) _outgoingConnectionClosedEvent.Set();
                                         }
                                         else
                                         {
@@ -1011,7 +1097,7 @@ namespace Netduino.IP
                                             _currentOutgoingTransmission.CurrentRetryTimeoutInMilliseconds *= 2;
                                             _currentOutgoingTransmission.CurrentRetryTimeoutInMachineTicks = currentTimeInMachineTicks + (_currentOutgoingTransmission.CurrentRetryTimeoutInMilliseconds * TimeSpan.TicksPerMillisecond);
                                             _tcpHandler.SendTcpSegment(_srcIPAddress, _destIPAddress, _srcIPPort, _destIPPort, _transmitWindowLeftEdge, _receiveWindowLeftEdge, GetReceiveBufferBytesFree(),
-                                                true, false, false, false, true, new byte[] { }, 0, 0, Int64.MaxValue); /* TODO: enable timeout */
+                                                true, false, false, false, true, null, new byte[] { }, 0, 0, Int64.MaxValue); /* TODO: enable timeout */
                                         }
                                     }
                                 }
@@ -1031,8 +1117,8 @@ namespace Netduino.IP
                 if (_tcpStateMachine_SendAckRequired)
                 {
                     _tcpStateMachine_SendAckRequired = false;
-                    _tcpHandler.SendTcpSegment(_srcIPAddress, _destIPAddress, _srcIPPort, _destIPPort, _transmitWindowLeftEdge, _receiveWindowLeftEdge, GetReceiveBufferBytesFree(), 
-                        true, false, false, (_currentOutgoingTransmission.TransmissionType == TransmissionType.SYN), false, new byte[] { }, 0, 0, Int64.MaxValue); /* TODO: enable timeout */
+                    _tcpHandler.SendTcpSegment(_srcIPAddress, _destIPAddress, _srcIPPort, _destIPPort, _transmitWindowLeftEdge, _receiveWindowLeftEdge, GetReceiveBufferBytesFree(),
+                        true, false, false, (_currentOutgoingTransmission.TransmissionType == TransmissionType.SYN), false, null, new byte[] { }, 0, 0, Int64.MaxValue); /* TODO: enable timeout */
                 }
             }
         }
@@ -1061,9 +1147,62 @@ namespace Netduino.IP
             }
         }
 
+        internal override UInt16 ReceiveBufferSize
+        {
+            get
+            {
+                return (UInt16)(_receiveBuffer.Length - 1); /* 1 byte of our internal buffer is unused */
+            }
+            set
+            {
+                value = (UInt16)(value + 1); /* 1 byte of our internal buffer is unused */
+
+                lock (_receiveBufferLockObject)
+                {
+                    Int32 receiveBufferBytesFilled = GetReceiveBufferBytesFilled();
+
+                    // if our new receive buffer is smaller than our old receive buffer, we will truncate any remaining data
+                    /* NOTE: an alternate potential behavior would be to block new data reception until enough data gets retrieved by the caller that we can shrink the buffer...
+                     *       or to only allow this operation before sockets are opened...
+                     *       or to choose the larger of the requested size and the currently-used size
+                     *       or to temporarily choose the larger of the requested size and the currently-used size...and then reduce the buffer size ASAP */
+                    if (receiveBufferBytesFilled > value)
+                        receiveBufferBytesFilled = value;
+
+                    // create new receive buffer
+                    byte[] newReceiveBuffer = new byte[value];
+
+                    // copy existing receive buffer to new receive buffer
+                    Int32 bytesToCopyBeforeWrap = (Int32)(System.Math.Min(receiveBufferBytesFilled, _receiveBuffer.Length - _receiveBufferFirstBytePos));
+                    Array.Copy(_receiveBuffer, (Int32)_receiveBufferFirstBytePos, newReceiveBuffer, 0, bytesToCopyBeforeWrap);
+                    _receiveBufferFirstBytePos = (_receiveBufferFirstBytePos + (UInt32)bytesToCopyBeforeWrap) % _receiveBufferSize;
+
+                    if (_receiveBufferFirstBytePos < _receiveBufferNextBytePos)
+                    {
+                        // data wrapped; copy remaining data to new receive buffer now.
+                        Int32 remainingBytesToCopy = receiveBufferBytesFilled - bytesToCopyBeforeWrap;
+                        Array.Copy(_receiveBuffer, (Int32)_receiveBufferFirstBytePos, newReceiveBuffer, bytesToCopyBeforeWrap, remainingBytesToCopy);
+                    }
+
+                    _receiveBuffer = newReceiveBuffer;
+                    _receiveBufferSize = value;
+                    _receiveBufferFirstBytePos = 0;
+                    _receiveBufferNextBytePos = (UInt32)receiveBufferBytesFilled;
+                }
+
+                /* if we are connected, send an ACK to the destination device to let it know that our buffer has more space available 
+                 * NOTE: technically we only need to do this if our receive buffer has gotten smaller or...if our receive buffer has gotten larger and freed up enough room for a full-size incoming segment */
+                if (_tcpStateMachine_CurrentState == TcpStateMachineState.ESTABLISHED)
+                {
+                    _tcpStateMachine_SendAckRequired = true;
+                    if (_tcpStateMachine_ActionRequiredEvent != null) _tcpStateMachine_ActionRequiredEvent.Set();
+                }
+            }
+        }
+
         UInt16 GetTransmitBufferBytesFree()
         {
-            lock (_receiveBufferLockObject)
+            lock (_transmitBufferLockObject)
             {
                 UInt32 tempTransmitBufferNextBytePos = _transmitBufferNextBytePos;
                 if (tempTransmitBufferNextBytePos < _transmitBufferFirstBytePos)
@@ -1075,11 +1214,61 @@ namespace Netduino.IP
 
         UInt16 GetTransmitBufferBytesFilled()
         {
-            UInt32 tempTransmitBufferNextBytePos = _transmitBufferNextBytePos;
-            if (tempTransmitBufferNextBytePos < _transmitBufferFirstBytePos)
-                tempTransmitBufferNextBytePos += _transmitBufferSize;
+            lock (_transmitBufferLockObject)
+            {
+                UInt32 tempTransmitBufferNextBytePos = _transmitBufferNextBytePos;
+                if (tempTransmitBufferNextBytePos < _transmitBufferFirstBytePos)
+                    tempTransmitBufferNextBytePos += _transmitBufferSize;
 
-            return (UInt16)(tempTransmitBufferNextBytePos - _transmitBufferFirstBytePos);
+                return (UInt16)(tempTransmitBufferNextBytePos - _transmitBufferFirstBytePos);
+            }
+        }
+
+        internal override UInt16 TransmitBufferSize
+        {
+            get
+            {
+                return (UInt16)(_transmitBuffer.Length - 1); /* 1 byte of our internal buffer is unused */
+            }
+            set
+            {
+                value = (UInt16)(value + 1); /* 1 byte of our internal buffer is unused */
+
+                lock (_transmitBufferLockObject)
+                {
+                    Int32 transmitBufferBytesFilled = GetTransmitBufferBytesFilled();
+
+                    // if our new transmit buffer is smaller than our old transmit buffer, throw an exception.
+                    /* NOTE: an alternate potential behavior would be to block new data transmissions until enough data gets sent that we can shrink the buffer...
+                     *       or to only allow this operation before sockets are opened...
+                     *       or to choose the larger of the requested size and the currently-used size
+                     *       or to temporarily choose the larger of the requested size and the currently-used size...and then reduce the buffer size ASAP */
+                    if (value < transmitBufferBytesFilled)
+                        throw new ArgumentException();
+
+                    // create new transmit buffer
+                    byte[] newTransmitBuffer = new byte[value];
+
+                    // copy existing transmit buffer to new transmit buffer
+                    Int32 bytesToCopyBeforeWrap = (Int32)(System.Math.Min(transmitBufferBytesFilled, _transmitBuffer.Length - _transmitBufferFirstBytePos));
+                    Array.Copy(_transmitBuffer, (Int32)_transmitBufferFirstBytePos, newTransmitBuffer, 0, bytesToCopyBeforeWrap);
+                    _transmitBufferFirstBytePos = (_transmitBufferFirstBytePos + (UInt32)bytesToCopyBeforeWrap) % _transmitBufferSize;
+
+                    if (_transmitBufferFirstBytePos < _transmitBufferNextBytePos)
+                    {
+                        // data wrapped; copy remaining data to new transmit buffer now.
+                        Int32 remainingBytesToCopy = transmitBufferBytesFilled - bytesToCopyBeforeWrap;
+                        Array.Copy(_transmitBuffer, (Int32)_transmitBufferFirstBytePos, newTransmitBuffer, bytesToCopyBeforeWrap, remainingBytesToCopy);
+                    }
+
+                    _transmitBuffer = newTransmitBuffer;
+                    _transmitBufferSize = value;
+                    _transmitBufferFirstBytePos = 0;
+                    _transmitBufferNextBytePos = (UInt32)transmitBufferBytesFilled;
+                }
+
+                if (_transmitBufferSpaceFreedEvent != null) _transmitBufferSpaceFreedEvent.Set();
+            }
         }
 
         public override Int32 GetBytesToRead()

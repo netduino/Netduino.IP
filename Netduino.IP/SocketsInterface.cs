@@ -254,6 +254,60 @@ namespace Netduino.IP
                         /* filter for Netduino.IP-supported optnames */
                         switch (optname)
                         {
+                            case 0x1001: /* SendBuffer */
+                                {
+                                    Socket socket = _ipv4Layer.GetSocket(handle);
+                                    if (typeof(TcpSocket).IsInstanceOfType(socket))
+                                    {
+                                        UInt32 transmitBufferSize = ((TcpSocket)socket).TransmitBufferSize;
+                                        optval[0] = (byte)((transmitBufferSize) & 0xFF);
+                                        optval[1] = (byte)(((transmitBufferSize) >> 8) & 0xFF);
+                                        optval[2] = (byte)(((transmitBufferSize) >> 16) & 0xFF);
+                                        optval[3] = (byte)(((transmitBufferSize) >> 24) & 0xFF);
+                                    }
+                                    else
+                                    {
+                                        throw new NotSupportedException();
+                                    }
+                                }
+                                break;
+                            case 0x1002: /* ReceiveBuffer */
+                                {
+                                    Socket socket = _ipv4Layer.GetSocket(handle);
+                                    if (typeof(TcpSocket).IsInstanceOfType(socket))
+                                    {
+                                        UInt32 receiveBufferSize = ((TcpSocket)socket).ReceiveBufferSize;
+                                        optval[0] = (byte)((receiveBufferSize) & 0xFF);
+                                        optval[1] = (byte)(((receiveBufferSize) >> 8) & 0xFF);
+                                        optval[2] = (byte)(((receiveBufferSize) >> 16) & 0xFF);
+                                        optval[3] = (byte)(((receiveBufferSize) >> 24) & 0xFF);
+                                    }
+                                    else
+                                    {
+                                        throw new NotSupportedException();
+                                    }
+                                }
+                                break;
+                            case 0x1005: /* SendTimeout */
+                                {
+                                    Socket socket = _ipv4Layer.GetSocket(handle);
+                                    Int32 sendTimeout = socket.TransmitTimeoutInMilliseconds;
+                                    optval[0] = (byte)((sendTimeout) & 0xFF);
+                                    optval[1] = (byte)(((sendTimeout) >> 8) & 0xFF);
+                                    optval[2] = (byte)(((sendTimeout) >> 16) & 0xFF);
+                                    optval[3] = (byte)(((sendTimeout) >> 24) & 0xFF);
+                                }
+                                break;
+                            case 0x1006: /* ReceiveTimeout */
+                                {
+                                    Socket socket = _ipv4Layer.GetSocket(handle);
+                                    Int32 receiveTimeout = socket.ReceiveTimeoutInMilliseconds;
+                                    optval[0] = (byte)((receiveTimeout) & 0xFF);
+                                    optval[1] = (byte)(((receiveTimeout) >> 8) & 0xFF);
+                                    optval[2] = (byte)(((receiveTimeout) >> 16) & 0xFF);
+                                    optval[3] = (byte)(((receiveTimeout) >> 24) & 0xFF);
+                                }
+                                break;
                             case 0x001008: /* SocketOptionName.Type */
                                 {
                                     Socket socket = _ipv4Layer.GetSocket(handle);
@@ -297,9 +351,76 @@ namespace Netduino.IP
                         /* filter for CC3100-specific optnames */
                         switch (optname)
                         {
+                            case 0x1001: /* SendBuffer */
+                                {
+                                    Int32 transmitBufferSize =
+                                        (((Int32)optval[3]) << 24) |
+                                        (((Int32)optval[2]) << 16) |
+                                        (((Int32)optval[1]) << 8) |
+                                        ((Int32)optval[0]);
+
+                                    if (transmitBufferSize <= 0)
+                                        throw new ArgumentOutOfRangeException();
+
+                                    Socket socket = _ipv4Layer.GetSocket(handle);
+                                    if (typeof(TcpSocket).IsInstanceOfType(socket))
+                                    {
+                                        socket.TransmitBufferSize = (UInt16)transmitBufferSize;
+                                    }
+                                    else
+                                    {
+                                        throw new NotSupportedException();
+                                    }
+                                }
+                                break;
+                            case 0x1002: /* ReceiveBuffer */
+                                {
+                                    Int32 receiveBufferSize =
+                                        (((Int32)optval[3]) << 24) |
+                                        (((Int32)optval[2]) << 16) |
+                                        (((Int32)optval[1]) << 8) |
+                                        ((Int32)optval[0]);
+
+                                    if (receiveBufferSize <= 0)
+                                        throw new ArgumentOutOfRangeException();
+
+                                    Socket socket = _ipv4Layer.GetSocket(handle);
+                                    if (typeof(TcpSocket).IsInstanceOfType(socket))
+                                    {
+                                        socket.ReceiveBufferSize = (UInt16)receiveBufferSize;
+                                    }
+                                    else
+                                    {
+                                        throw new NotSupportedException();
+                                    }
+                                }
+                                break;
+                            case 0x1005: /* SendTimeout */
+                                {
+                                    Int32 sendTimeout =
+                                        (((Int32)optval[3]) << 24) |
+                                        (((Int32)optval[2]) << 16) |
+                                        (((Int32)optval[1]) << 8) |
+                                        ((Int32)optval[0]);
+
+                                    if (sendTimeout == -1)
+                                        sendTimeout = 0;
+
+                                    _ipv4Layer.GetSocket(handle).TransmitTimeoutInMilliseconds = sendTimeout;
+                                }
+                                break;
                             case 0x1006: /* ReceiveTimeout */
                                 {
-                                    /* TODO: implement receive timeout, on a per-socket basis */
+                                    Int32 receiveTimeout =
+                                        (((Int32)optval[3]) << 24) |
+                                        (((Int32)optval[2]) << 16) |
+                                        (((Int32)optval[1]) << 8) |
+                                        ((Int32)optval[0]);
+
+                                    if (receiveTimeout == -1)
+                                        receiveTimeout = 0;
+
+                                    _ipv4Layer.GetSocket(handle).ReceiveTimeoutInMilliseconds = receiveTimeout;
                                 }
                                 break;
                             default:

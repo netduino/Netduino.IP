@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 
 namespace Netduino.IP
 {
@@ -60,5 +61,11 @@ namespace Netduino.IP
             return (UInt16)checksum;
         }
 
+        internal static Exception NewSocketException(SocketError errorCode)
+        {
+            Type socketErrorType = Type.GetType("System.Net.Sockets.SocketError, System");
+            ConstructorInfo constructorInfo = Type.GetType("System.Net.Sockets.SocketException, System").GetConstructor(new Type[] { socketErrorType });
+            return (Exception)(constructorInfo.Invoke(new object[] { errorCode }));
+        }
     }
 }

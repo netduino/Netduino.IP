@@ -527,7 +527,7 @@ namespace Netduino.IP
                         else
                         {
                             // no handle available
-                            //throw new System.Net.Sockets.SocketException(System.Net.Sockets.SocketError.TooManyOpenSockets);
+                            //throw Utility.NewSocketException(SocketError.TooManyOpenSockets);
                             return -1;
                         }
                     }
@@ -542,7 +542,7 @@ namespace Netduino.IP
                         else
                         {
                             // no handle available
-                            //throw new System.Net.Sockets.SocketException(System.Net.Sockets.SocketError.TooManyOpenSockets);
+                            //throw Utility.NewSocketException(SocketError.TooManyOpenSockets);
                             return -1;
                         }
                     }
@@ -697,7 +697,7 @@ namespace Netduino.IP
                 dstPhysicalAddress = _arpResolver.TranslateIPAddressToPhysicalAddress(_ipv4configGatewayAddress, timeoutInMachineTicks);
             }
             if (dstPhysicalAddress == 0)
-                throw new Exception(); // could not resolve address /* TODO: find better exception or return a success/fail as bool from this function */
+                throw Utility.NewSocketException(SocketError.HostUnreachable);  /* TODO: consider returning a success/fail as bool from this function */
 
             lock (_ipv4HeaderBufferLockObject)
             {

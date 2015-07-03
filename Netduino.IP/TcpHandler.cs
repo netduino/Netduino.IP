@@ -11,7 +11,7 @@ namespace Netduino.IP
         IPv4Layer _ipv4Layer;
 
         // fixed buffer for TCP header
-        const int TCP_HEADER_MIN_LENGTH = 20; /* no options */
+        internal const int TCP_HEADER_MIN_LENGTH = 20; /* no options */
         const int TCP_HEADER_MAX_LENGTH = 60; /* including options */
         const int TCP_PSEUDO_HEADER_LENGTH = 12;
         byte[] _tcpHeaderBuffer = new byte[TCP_HEADER_MAX_LENGTH];
@@ -28,6 +28,18 @@ namespace Netduino.IP
         protected byte[][] _bufferArray = new byte[2][];
         protected int[] _indexArray = new int[2];
         protected int[] _countArray = new int[2];
+
+        internal struct TcpOption
+        {
+            public byte Kind;
+            public byte[] Data;
+
+            public TcpOption(byte kind, byte[] data)
+            {
+                this.Kind = kind;
+                this.Data = data;
+            }
+        }
 
         public TcpHandler(IPv4Layer ipv4Layer)
         {
@@ -160,17 +172,17 @@ namespace Netduino.IP
                     (UInt32)buffer[index + 11];
 
                 SendTcpSegment(destinationIPAddress, sourceIPAddress, destinationIPPort, sourceIPPort,
-                    acknowledgmentNumber, sequenceNumber, 0, false, false, true, false, false, new byte[] { }, 0, 0, Int64.MaxValue);
+                    acknowledgmentNumber, sequenceNumber, 0, false, false, true, false, false, null, new byte[] { }, 0, 0, Int64.MaxValue);
             }
         }
 
-        internal void SendTcpSegment(UInt32 sourceIPAddress, UInt32 destinationIPAddress, UInt16 sourceIPPort, UInt16 destinationIPPort, UInt32 sequenceNumber, UInt32 acknowledgementNumber, UInt16 windowSize, bool sendAck, bool sendPsh, bool sendRst, bool sendSyn, bool sendFin, byte[] buffer, Int32 offset, Int32 count, Int64 timeoutInMachineTicks)
+        internal void SendTcpSegment(UInt32 sourceIPAddress, UInt32 destinationIPAddress, UInt16 sourceIPPort, UInt16 destinationIPPort, UInt32 sequenceNumber, UInt32 acknowledgementNumber, UInt16 windowSize, bool sendAck, bool sendPsh, bool sendRst, bool sendSyn, bool sendFin, TcpOption[] tcpOptions, byte[] buffer, Int32 offset, Int32 count, Int64 timeoutInMachineTicks)
         {
             if (_isDisposed) return;
 
             lock (_tcpHeaderBufferLockObject)
             {
-                Int32 tcpHeaderLength = TCP_HEADER_MIN_LENGTH;
+                Int32 tcpHeaderLength = TCP_HEADER_MIN_LENGTH + (sendSyn ? 4 : 0);
 
                 // TCP basic header: 20 bytes
                 _tcpHeaderBuffer[0] = (byte)((sourceIPPort >> 8) & 0xFF);
@@ -211,8 +223,39 @@ namespace Netduino.IP
                 Array.Clear(_tcpHeaderBuffer, 16, 2);
                 // urgent pointer
                 /* NOTE: bytes 18-19, never populated */
-                // optional headers; clear out by default policy
+
+                // TCP options: empty by default policy -- but zero-initialized under any circumstance
                 Array.Clear(_tcpHeaderBuffer, TCP_HEADER_MIN_LENGTH, TCP_HEADER_MAX_LENGTH - TCP_HEADER_MIN_LENGTH);
+
+                /* TCP options */
+                if (tcpOptions != null)
+                {
+                    int headerPos = TCP_HEADER_MIN_LENGTH;
+                    for (int iOption = 0; iOption < tcpOptions.Length; iOption++)
+                    {
+                        _tcpHeaderBuffer[headerPos++] = tcpOptions[iOption].Kind;
+                        switch (tcpOptions[iOption].Kind)
+                        {
+                            case 0: /* EOL = End of Option List */
+                            case 1: /* NOP = No OPeration; used for padding */
+                                break;
+                            default:
+                                {
+                                    if (tcpOptions[iOption].Data != null)
+                                    {
+                                        _tcpHeaderBuffer[headerPos++] = (byte)(tcpOptions[iOption].Data.Length + 2);
+                                        Array.Copy(tcpOptions[iOption].Data, 0, _tcpHeaderBuffer, headerPos, tcpOptions[iOption].Data.Length);
+                                        headerPos += tcpOptions[iOption].Data.Length;
+                                    }
+                                    else
+                                    {
+                                        _tcpHeaderBuffer[headerPos++] = 2; /* only 2 bytes--the kind and the length--with no data */
+                                    }
+                                }
+                                break;
+                        }
+                    }
+                }                
 
                 UInt16 checksum;
                 lock (_tcpPseudoHeaderBufferLockObject)

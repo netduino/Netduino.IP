@@ -124,10 +124,7 @@ namespace System.Net.Sockets
 
             set
             {
-                if (value < Timeout.Infinite) throw new ArgumentOutOfRangeException();
-
-                // desktop implementation treats 0 as infinite
-                m_recvTimeout = ((value == 0) ? Timeout.Infinite : value);
+                SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, value);
             }
         }
 
@@ -140,10 +137,7 @@ namespace System.Net.Sockets
 
             set
             {
-                if (value < Timeout.Infinite) throw new ArgumentOutOfRangeException();
-
-                // desktop implementation treats 0 as infinite
-                m_sendTimeout = ((value == 0) ? Timeout.Infinite : value);
+                SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendTimeout, value);
             }
         }
 

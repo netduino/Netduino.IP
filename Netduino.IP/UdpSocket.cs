@@ -33,12 +33,13 @@ namespace Netduino.IP
             public UInt32 SourceIPAddress;
             public UInt16 SourceIPPort;
             public byte[] Buffer = new byte[1500];
-            public Int32 ActualBufferLength;
+            public Int32 BufferBytesFilled;
             public bool IsEmpty;
             public object LockObject;
         }
         ReceivedPacketBuffer _receivedPacketBuffer = new ReceivedPacketBuffer();
         AutoResetEvent _receivedPacketBufferFilledEvent = new AutoResetEvent(false);
+        const Int32 RECEIVE_BUFFER_MIN_SIZE = 536; /* 536 bytes is the minimum receive buffer size allowed by UDP spec */
 
         public UdpSocket(IPv4Layer ipv4Layer, int handle)
             : base(handle)
@@ -75,7 +76,7 @@ namespace Netduino.IP
         public override void Bind(UInt32 ipAddress, UInt16 ipPort)
         {
             if (_sourceIpAddressAndPortAssigned)
-                throw new Exception(); /* is this correct; should we throw an exception if we already have an IP address/port assigned? */
+                throw Utility.NewSocketException(SocketError.IsConnected); /* is this correct; should we throw an exception if we already have an IP address/port assigned? */
 
             _sourceIpAddressAndPortAssigned = true;
 
@@ -88,7 +89,7 @@ namespace Netduino.IP
 
             // verify that this source IP address is correct
             if (ipAddress != _ipv4Layer.IPAddress)
-                throw new Exception(); // throw a better exception (address invalid)
+                throw Utility.NewSocketException(SocketError.AddressNotAvailable); 
 
             /* ensure that no other UdpSockets are bound to this address/port */
             for (int iSocketHandle = 0; iSocketHandle < IPv4Layer.MAX_SIMULTANEOUS_SOCKETS; iSocketHandle++)
@@ -99,7 +100,7 @@ namespace Netduino.IP
                     socket.SourceIPAddress == ipAddress && 
                     socket.SourceIPPort == ipPort)
                 {
-                    throw new Exception(); /* find a better exception for "cannot bind to already-bound port" */
+                    throw Utility.NewSocketException(SocketError.AddressAlreadyInUse); 
                 }
             }
 
@@ -132,7 +133,7 @@ namespace Netduino.IP
                         /* TODO: check if listen has been called and a connection is pending */
                         //return true;
 
-                        if (_receivedPacketBuffer.ActualBufferLength > 0)
+                        if (_receivedPacketBuffer.BufferBytesFilled > 0)
                             return true;
 
                         /* TODO: check if connection has been closed, reset, or terminated */
@@ -181,7 +182,7 @@ namespace Netduino.IP
         {
             // make sure that a default destination IPEndpoint has been configured.
             if ((_destIPAddress == IP_ADDRESS_ANY) || (_destIPPort == IP_PORT_ANY))
-                throw new Exception(); /* TODO: find better exception for "must specify destination ipaddr/port" */
+                throw Utility.NewSocketException(SocketError.NotConnected); /* "must specify destination ipaddr/port" */
 
             // send to the default destination ipAddress/ipPort (as specified when Connect was called)
             return SendTo(buffer, offset, count, flags, timeoutInMachineTicks, _destIPAddress, _destIPPort);
@@ -280,7 +281,7 @@ namespace Netduino.IP
             int bytesRead;
             lock (_receivedPacketBuffer.LockObject)
             {
-                bytesRead = Math.Min(count, _receivedPacketBuffer.ActualBufferLength);
+                bytesRead = Math.Min(count, _receivedPacketBuffer.BufferBytesFilled);
                 Array.Copy(_receivedPacketBuffer.Buffer, 0, buf, offset, bytesRead);
                 ipAddress = _receivedPacketBuffer.SourceIPAddress;
                 ipPort = _receivedPacketBuffer.SourceIPPort;
@@ -342,7 +343,7 @@ namespace Netduino.IP
                 UInt16 sourceIPPort = (UInt16)((((UInt16)buffer[index + 0]) << 8) + buffer[index + 1]);
 
                 Array.Copy(buffer, index + UDP_HEADER_LENGTH, _receivedPacketBuffer.Buffer, 0, count - UDP_HEADER_LENGTH);
-                _receivedPacketBuffer.ActualBufferLength = count - UDP_HEADER_LENGTH;
+                _receivedPacketBuffer.BufferBytesFilled = count - UDP_HEADER_LENGTH;
 
                 _receivedPacketBuffer.SourceIPAddress = sourceIPAddress;
                 _receivedPacketBuffer.SourceIPPort = sourceIPPort;
@@ -359,11 +360,45 @@ namespace Netduino.IP
 
             if (buffer.Buffer == null)
                 buffer.Buffer = new byte[1500]; /* TODO: determine correct maximum size and make this a const */
-            buffer.ActualBufferLength = 0;
+            buffer.BufferBytesFilled = 0;
 
             buffer.IsEmpty = true;
             if (buffer.LockObject == null)
                 buffer.LockObject = new object();
+        }
+
+        internal override UInt16 ReceiveBufferSize
+        {
+            get
+            {
+                lock (_receivedPacketBuffer.LockObject)
+                {
+                    return (UInt16)_receivedPacketBuffer.BufferBytesFilled;
+                }
+            }
+            set
+            {
+                value = (UInt16)System.Math.Max(value, RECEIVE_BUFFER_MIN_SIZE);
+
+                lock (_receivedPacketBuffer.LockObject)
+                {
+                    // create new receive buffer
+                    byte[] newReceiveBuffer = new byte[value];
+
+                    // if our new receive buffer is smaller than our old receive buffer, we will truncate any remaining data
+                    /* NOTE: an alternate potential behavior would be to block new data reception until enough data gets retrieved by the caller that we can shrink the buffer...
+                     *       or to only allow this operation before sockets are opened...
+                     *       or to choose the larger of the requested size and the currently-used size
+                     *       or to temporarily choose the larger of the requested size and the currently-used size...and then reduce the buffer size ASAP */
+
+                    // copy existing receive buffer to new receive buffer
+                    Int32 bytesToCopy = System.Math.Min(_receivedPacketBuffer.BufferBytesFilled, newReceiveBuffer.Length);
+                    Array.Copy(_receivedPacketBuffer.Buffer, newReceiveBuffer, bytesToCopy);
+
+                    _receivedPacketBuffer.Buffer = newReceiveBuffer;
+                    _receivedPacketBuffer.BufferBytesFilled = bytesToCopy;
+                }
+            }
         }
 
         public override Int32 GetBytesToRead()
@@ -373,7 +408,7 @@ namespace Netduino.IP
                 if (_receivedPacketBuffer.IsEmpty)
                     return 0;
 
-                return _receivedPacketBuffer.ActualBufferLength;
+                return _receivedPacketBuffer.BufferBytesFilled;
             }
         }
     }

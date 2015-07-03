@@ -20,7 +20,18 @@ namespace Microsoft.SPOT.Net
         {
             //return Netduino.IP.SocketsInterface.socket(family, type, protocol);
             MethodInfo methodInfo = Type.GetType("Netduino.IP.SocketsInterface, Netduino.IP").GetMethod("socket", BindingFlags.Public | BindingFlags.Static);
-            return (int)(methodInfo.Invoke(null, new object[] { family, type, protocol }));
+            int handle = (int)(methodInfo.Invoke(null, new object[] { family, type, protocol }));
+
+            if (handle == -1)
+            {
+                Type socketErrorType = Type.GetType("System.Net.Sockets.SocketError, System");
+                ConstructorInfo constructorInfo = Type.GetType("System.Net.Sockets.SocketException, System").GetConstructor(new Type[] { socketErrorType });
+                throw (Exception)(constructorInfo.Invoke(new object[] { (UInt32)10024 /* TooManyOpenSockets */ }));
+            }
+            else
+            {
+                return handle;
+            }
         }
 
         public static void bind(int handle, byte[] address)

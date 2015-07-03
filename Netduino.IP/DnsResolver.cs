@@ -155,7 +155,7 @@ namespace Netduino.IP
             if (dnsServerAddresses.Length < 1)
             {
                 /* could not resolve DNS entry */
-                throw new Exception(); /* TODO: find proper exception for "no DNS server is configured" */
+                throw Utility.NewSocketException(SocketError.NoRecovery); /* no DNS server is configured */
             }
 
             /* NOTE: this DNS resolver assumes that all names are Internet domains. */
@@ -210,7 +210,7 @@ namespace Netduino.IP
 
             if (response == null)
             {
-                throw new Exception(); /* TODO: find better exception for "no response received from any dns server" */
+                throw Utility.NewSocketException(SocketError.TryAgain); /* no response received from any dns server */
             }
 
             switch (response.ResponseCode)
@@ -218,9 +218,11 @@ namespace Netduino.IP
                 case DnsResponseCode.NoError:
                     break; /* success */
                 case DnsResponseCode.NXDomain:
+                    throw Utility.NewSocketException(SocketError.HostNotFound);
                 case DnsResponseCode.Refused:
+                    throw Utility.NewSocketException(SocketError.NoRecovery);
                 case DnsResponseCode.ServFail:
-                    throw new Exception(); /* TODO: find better exception for each of these */
+                    throw Utility.NewSocketException(SocketError.TryAgain);
                 default:
                     break; /* in theory, some errors could actually have valid data, so ignore other errors for now. */
             }
@@ -270,6 +272,9 @@ namespace Netduino.IP
                     _dnsCache.Add(name.ToLower(), dnsEntry);
                 }
             }
+
+            if (ipAddressList.Count == 0)
+                throw Utility.NewSocketException(SocketError.NoData);
 
             UInt32[] addresses = (UInt32[])ipAddressList.ToArray(typeof(UInt32));
             return addresses;
@@ -362,7 +367,7 @@ namespace Netduino.IP
                 _ipv4Layer.CloseSocket(socketHandle);
             }
 
-            throw new Exception(); /* TODO: find better exception for "could not retrieve DNS response" */
+            throw Utility.NewSocketException(SocketError.TryAgain);  /* could not retrieve DNS response */
         }
 
         bool RetrieveDnsResponse(UdpSocket socket, UInt16 transactionID, out DnsResponse dnsResponse, Int64 timeoutInMachineTicks)
