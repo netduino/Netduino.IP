@@ -10,6 +10,10 @@ namespace Netduino.IP
 
         const UInt16 DNS_SERVER_PORT = 53;
 
+        /* TODO: we may want to make the DNS query timeout configurable in the future */
+        // use a DNS query timeout of 5 seconds per server
+        const int DNS_QUERY_TIMEOUT_MS = 5000;
+
         IPv4Layer _ipv4Layer;
 
         bool _isDisposed = false;
@@ -194,18 +198,18 @@ namespace Netduino.IP
 
             Int64 expirationInMachineTicks = Int64.MaxValue;
 
-            double millisecondsWaitTimeBetweenDnsQueries = (4000.0 / Math.Max((double)(dnsServerAddresses.Length - 1), 1.0));
             DnsResponse response = null;
             for (int iDnsServer = 0; iDnsServer < dnsServerAddresses.Length; iDnsServer++)
             {
-                response = SendDnsQueryAndWaitForResponse(dnsServerAddresses[iDnsServer], DnsRecordType.A, name, timeoutInMachineTicks);
+                // set our query timeout to the maximum of DNS_QUERY_TIMEOUT_MS and the hard timeout passed into our function.
+                Int64 queryTimeoutInMachineTicks = Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks + (DNS_QUERY_TIMEOUT_MS * TimeSpan.TicksPerMillisecond);
+                if (queryTimeoutInMachineTicks > timeoutInMachineTicks)
+                    queryTimeoutInMachineTicks = timeoutInMachineTicks;
 
-                if (response != null)
+                // query this DNS server and wait for a response (until a maximum time of queryTimeoutInMachineTicks)
+                bool success = SendDnsQueryAndWaitForResponse(dnsServerAddresses[iDnsServer], DnsRecordType.A, name, out response, queryTimeoutInMachineTicks);
+                if (success)
                     break;
-
-                Int32 waitTimeInMilliseconds = (Int32)System.Math.Min(((timeoutInMachineTicks - Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks) / TimeSpan.TicksPerMillisecond), millisecondsWaitTimeBetweenDnsQueries);
-                if (waitTimeInMilliseconds > 0)
-                    Thread.Sleep(waitTimeInMilliseconds);
             }
 
             if (response == null)
@@ -280,10 +284,8 @@ namespace Netduino.IP
             return addresses;
         }
 
-        DnsResponse SendDnsQueryAndWaitForResponse( UInt32 dnsServerIPAddress, DnsRecordType recordType, string name, Int64 timeoutInMachineTicks)
+        bool SendDnsQueryAndWaitForResponse(UInt32 dnsServerIPAddress, DnsRecordType recordType, string name, out DnsResponse dnsResponse, Int64 timeoutInMachineTicks)
         {
-            DnsResponse dnsResponse;
-
             // obtain an exclusive handle to the reserved socket
             int socketHandle = _ipv4Layer.CreateSocket(IPv4Layer.ProtocolType.Udp, timeoutInMachineTicks, true);
             // instantiate the reserved socket
@@ -358,7 +360,7 @@ namespace Netduino.IP
 
                 if (success)
                 {
-                    return dnsResponse;
+                    return true;
                 }
             }
             finally
@@ -367,7 +369,7 @@ namespace Netduino.IP
                 _ipv4Layer.CloseSocket(socketHandle);
             }
 
-            throw Utility.NewSocketException(SocketError.TryAgain);  /* could not retrieve DNS response */
+            return false;  /* could not retrieve DNS response */
         }
 
         bool RetrieveDnsResponse(UdpSocket socket, UInt16 transactionID, out DnsResponse dnsResponse, Int64 timeoutInMachineTicks)

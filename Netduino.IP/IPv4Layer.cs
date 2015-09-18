@@ -78,7 +78,7 @@ namespace Netduino.IP
         ReceivedPacketBuffer[] _receivedPacketBuffers = new ReceivedPacketBuffer[DEFAULT_NUM_RECEIVED_PACKET_BUFFERS];
 
         //// fixed buffer for IPv4 header
-        const int IPV4_HEADER_MIN_LENGTH = 20;
+        internal const int IPV4_HEADER_MIN_LENGTH = 20;
         const int IPV4_HEADER_MAX_LENGTH = 60;
         byte[] _ipv4HeaderBuffer = new byte[IPV4_HEADER_MAX_LENGTH];
         object _ipv4HeaderBufferLockObject = new object();
@@ -136,14 +136,24 @@ namespace Netduino.IP
                 _ipv4configGatewayAddress = ConvertIPAddressStringToUInt32BE((string)networkInterface.GetType().GetMethod("get_GatewayAddress").Invoke(networkInterface, new object[] { }));
                 _arpResolver.SetIpv4Address(_ipv4configIPAddress);
             }
+
             // retrieve our DnsServer IP address configuration
             if (!dhcpDnsConfigEnabled)
             {
                 string[] dnsAddressesString = (string[])networkInterface.GetType().GetMethod("get_DnsAddresses").Invoke(networkInterface, new object[] { });
-                _ipv4configDnsServerAddresses = new UInt32[dnsAddressesString.Length];
-                for (int iDnsAddress = 0; iDnsAddress < _ipv4configDnsServerAddresses.Length; iDnsAddress++)
+                if (dnsAddressesString.Length > 0)
                 {
-                    _ipv4configDnsServerAddresses[iDnsAddress] = ConvertIPAddressStringToUInt32BE(dnsAddressesString[iDnsAddress]);
+                    _ipv4configDnsServerAddresses = new UInt32[dnsAddressesString.Length];
+                    for (int iDnsAddress = 0; iDnsAddress < _ipv4configDnsServerAddresses.Length; iDnsAddress++)
+                    {
+                        _ipv4configDnsServerAddresses[iDnsAddress] = ConvertIPAddressStringToUInt32BE(dnsAddressesString[iDnsAddress]);
+                    }
+                }
+                else // (dnsAddressesString.Length == 0)
+                {
+                    /* WORKAROUND: when DHCP is enabled, NETMF traditionally considers the DNS servers to be DHCP-allocated if no DNS servers are present.  Change the dhcpDnsConfigEnabled flag to true here if no DNS servers addresses are configured. */
+                    if (dhcpIpConfigEnabled)
+                            dhcpDnsConfigEnabled = true;
                 }
             }
 

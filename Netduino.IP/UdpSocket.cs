@@ -8,7 +8,7 @@ namespace Netduino.IP
         IPv4Layer _ipv4Layer;
 
         // fixed buffer for UDP header
-        const int UDP_HEADER_LENGTH = 8;
+        internal const int UDP_HEADER_LENGTH = 8;
         const int UDP_PSEUDO_HEADER_LENGTH = 12;
         byte[] _udpHeaderBuffer = new byte[UDP_HEADER_LENGTH];
         object _udpHeaderBufferLockObject = new object();
