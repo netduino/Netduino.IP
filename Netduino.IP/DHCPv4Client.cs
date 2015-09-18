@@ -6,6 +6,7 @@ namespace Netduino.IP
     internal class DHCPv4Client : IDisposable 
     {
         const int DHCP_FRAME_BUFFER_LENGTH = 548;
+        const int DHCP_MESSAGE_MAXIMUM_SIZE = DHCP_FRAME_BUFFER_LENGTH + IPv4Layer.IPV4_HEADER_MIN_LENGTH + UdpSocket.UDP_HEADER_LENGTH; /* = 576 bytes */
 
         const byte HARDWARE_TYPE_ETHERNET = 0x01;
         const byte HARDWARE_ADDRESS_SIZE = 6;
@@ -662,8 +663,8 @@ namespace Netduino.IP
                 }
 
                 byte[] maximumDhcpMessageSize = new byte[2];
-                maximumDhcpMessageSize[0] = (byte)((DHCP_FRAME_BUFFER_LENGTH >> 8) & 0xFF);
-                maximumDhcpMessageSize[1] = (byte)(DHCP_FRAME_BUFFER_LENGTH & 0xFF);
+                maximumDhcpMessageSize[0] = (byte)((DHCP_MESSAGE_MAXIMUM_SIZE >> 8) & 0xFF);
+                maximumDhcpMessageSize[1] = (byte)(DHCP_MESSAGE_MAXIMUM_SIZE & 0xFF);
 
                 dhcpOffers = new System.Collections.ArrayList();
                 while (timeoutInMachineTicks > Microsoft.SPOT.Hardware.Utility.GetMachineTime().Ticks)
@@ -742,8 +743,8 @@ namespace Netduino.IP
                 }
 
                 byte[] maximumDhcpMessageSize = new byte[2];
-                maximumDhcpMessageSize[0] = (byte)((DHCP_FRAME_BUFFER_LENGTH >> 8) & 0xFF);
-                maximumDhcpMessageSize[1] = (byte)(DHCP_FRAME_BUFFER_LENGTH & 0xFF);
+                maximumDhcpMessageSize[0] = (byte)((DHCP_MESSAGE_MAXIMUM_SIZE >> 8) & 0xFF);
+                maximumDhcpMessageSize[1] = (byte)(DHCP_MESSAGE_MAXIMUM_SIZE & 0xFF);
 
                 byte[] requestedIPAddress = new byte[4];
                 requestedIPAddress[0] = (byte)((dhcpOffer.IPAddress >> 24) & 0xFF);
